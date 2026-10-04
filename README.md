@@ -23,7 +23,19 @@ preview server).
 ## Layout
 
 - `src/main.ts`: entry point; WebGL2 check, render loop, pause while the tab is hidden.
+- `src/game.ts`: toss states (`loading`, `idle`, `flying`, `result`, `error`), tap and Space/Enter
+  input, result announcement, camera dolly. Exposes `data-toss-state` and `data-toss-count` on
+  `<body>`.
 - `src/scene/createScene.ts`: renderer, table, lights, resize handling.
 - `src/scene/camera.ts`: camera placement that keeps the play zone on the table fully in view
-  for any aspect ratio.
-- `e2e/`: Playwright smoke tests on a mobile Chromium profile.
+  for any aspect ratio; `src/scene/dolly.ts` moves it toward the coin after a toss.
+- `src/coin/`: coin dimensions, convex hull, faces and symmetries (`coinSpec.ts`) and the
+  procedural three.js mesh (`coinMesh.ts`).
+- `src/random.ts`: uniform integers from `crypto.getRandomValues`.
+- `src/physics/`: Rapier world for one toss (`simulate.ts`) and the recorded frame format
+  (`frames.ts`).
+- `src/toss/`: launch profiles, toss planning with rejection and fallback (`planToss.ts`), face
+  remapping by shape symmetry (`faces.ts`), playback (`playback.ts`). `engine.ts` is the lazily
+  loaded entry for the physics chunk.
+- `docs/decisions.md`: design decisions and the alternatives they rule out.
+- `e2e/`: Playwright tests on a mobile Chromium profile.

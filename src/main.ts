@@ -1,4 +1,6 @@
 import './style.css';
+import { createCoinMesh } from './coin/coinMesh';
+import { startGame } from './game';
 import { createScene, type SceneHandle } from './scene/createScene';
 
 // Probed on a throwaway canvas: three.js r163+ needs WebGL2, and a failed WebGLRenderer
@@ -17,7 +19,12 @@ function showWebGLError(): void {
   document.querySelector<HTMLElement>('#webgl-error')?.removeAttribute('hidden');
 }
 
-function startScene(canvas: HTMLCanvasElement): void {
+function prefersReducedMotion(): () => boolean {
+  const query = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+  return () => query?.matches ?? false;
+}
+
+function startScene(canvas: HTMLCanvasElement, announcer: HTMLElement): void {
   let scene: SceneHandle;
   try {
     scene = createScene(canvas, () => {
@@ -28,10 +35,23 @@ function startScene(canvas: HTMLCanvasElement): void {
     return;
   }
 
+  const coin = createCoinMesh();
+  scene.scene.add(coin);
+  const game = startGame({
+    canvas,
+    scene,
+    coin,
+    announcer,
+    // Separate chunk: the scene shows while the physics engine downloads.
+    loadEngine: () => import('./toss/engine').then((engine) => engine.createTossEngine()),
+    reducedMotion: prefersReducedMotion(),
+  });
+
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       scene.stop();
     } else {
+      game.resume();
       scene.start();
     }
   });
@@ -42,9 +62,10 @@ function startScene(canvas: HTMLCanvasElement): void {
 }
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene');
+const announcer = document.querySelector<HTMLElement>('#toss-result');
 
-if (canvas && hasWebGL2()) {
-  startScene(canvas);
+if (canvas && announcer && hasWebGL2()) {
+  startScene(canvas, announcer);
 } else {
   showWebGLError();
 }
