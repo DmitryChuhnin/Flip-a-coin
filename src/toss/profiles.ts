@@ -2,7 +2,7 @@ import { CIRCUMRADIUS, THICKNESS } from '../coin/coinSpec';
 import type { Pose, Vec3 } from '../math/quat';
 import { GRAVITY } from '../physics/simulate';
 
-export type ProfileName = 'normal' | 'edge' | 'spinner';
+export type ProfileName = 'normal' | 'edge' | 'spinner' | 'reduced';
 
 export interface Impulse {
   linearVelocity: Vec3;
@@ -68,7 +68,7 @@ export const PROFILES: readonly ProfileSpec[] = [
 ];
 
 export const REDUCED_MOTION_PROFILE: ProfileSpec = {
-  name: 'normal',
+  name: 'reduced',
   weight: 1,
   lift: [7.5, 8.5],
   verticalSpin: [0, 0.5],

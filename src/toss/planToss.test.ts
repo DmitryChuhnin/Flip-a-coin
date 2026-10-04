@@ -134,17 +134,33 @@ describe('planToss', () => {
     );
   });
 
-  it('uses only the normal profile under reduced motion', () => {
+  it('uses only the reduced profile under reduced motion and flies lower and shorter', () => {
     const source = seededSource(31);
-    for (let i = 0; i < 30; i += 1) {
-      expect(plan({ reducedMotion: true, source }).profile).toBe('normal');
-    }
+    const apex = (p: TossPlan<CoinValue>) =>
+      Math.max(
+        ...Array.from(
+          { length: frameCount(p.frames) },
+          (_, i) => framePose(p.frames, i).position[1],
+        ),
+      );
+    const mean = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.length;
+    const reduced = Array.from({ length: 30 }, () => plan({ reducedMotion: true, source }));
+    const normal = Array.from({ length: 30 }, () => plan({ source })).filter(
+      (p) => p.profile === 'normal',
+    );
+    expect(reduced.every((p) => p.profile === 'reduced')).toBe(true);
+    expect(normal.length).toBeGreaterThan(10);
+    expect(Math.max(...reduced.map(apex))).toBeLessThan(Math.min(...normal.map(apex)));
+    expect(mean(reduced.map((p) => p.durationS))).toBeLessThan(
+      mean(normal.map((p) => p.durationS)),
+    );
   });
 
   it('uses every profile without reduced motion', () => {
     const source = seededSource(32);
     const seen = new Set(Array.from({ length: 60 }, () => plan({ source }).profile));
     expect([...seen].sort()).toEqual(PROFILES.map((p) => p.name).sort());
+    expect(seen.has('reduced')).toBe(false);
   });
 
   it('throws when the fallback cannot show the outcome', () => {
@@ -153,7 +169,7 @@ describe('planToss', () => {
       ...simulateToss(input),
       settled: false,
     });
-    // Seed chosen so the outcome is tails while the one-frame fallback rests heads up.
+    // The one-frame fallback rests heads up, so every seed that picks tails must throw.
     const outcomes = [1, 2, 3, 4, 5, 6].map((seed) => {
       try {
         return plan({ fallback: flat, simulate: neverSettles, source: seededSource(seed) }).outcome;
