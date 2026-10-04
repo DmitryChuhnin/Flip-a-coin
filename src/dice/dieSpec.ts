@@ -41,6 +41,8 @@ export interface DieLabel {
   up: readonly [x: number, y: number];
   /** Digit height, world units. */
   height: number;
+  /** Widest text that stays on the cut face, world units; wider text is squeezed to it. */
+  maxWidth: number;
   /** 6 and 9 are underlined so they cannot be mistaken for each other. */
   underline: boolean;
 }
@@ -171,7 +173,7 @@ const SHAPES: Record<DieKind, () => DieShape> = {
       0.9,
     ),
     cut: 0.1,
-    textScale: 1.1,
+    textScale: 0.95,
   }),
 };
 
@@ -236,8 +238,41 @@ function label(
     y: dot3(d, frame.v),
     up: [dot3(up, frame.u), dot3(up, frame.v)],
     height,
+    maxWidth: 0,
     underline: text === '6' || text === '9',
   };
+}
+
+/** Underline band below the digits, in digit heights; `dieMesh` draws it there. */
+export const UNDERLINE = { gap: 0.12, thickness: 0.1 } as const;
+const LABEL_MARGIN = 0.95;
+
+/**
+ * Twice the shortest distance, along the text line, from the label axis to the polygon edge over
+ * the label's height. The polygon is convex, so checking the top and bottom lines is enough.
+ */
+function fitWidth(label: DieLabel, polygon: [number, number][]): number {
+  const mx = polygon.reduce((sum, [x]) => sum + x, 0) / polygon.length;
+  const my = polygon.reduce((sum, [, y]) => sum + y, 0) / polygon.length;
+  const [ux, uy] = label.up;
+  const below = label.underline ? UNDERLINE.gap + UNDERLINE.thickness : 0;
+  let half = Infinity;
+  for (const t of [label.height / 2, -label.height * (0.5 + below)]) {
+    const px = label.x + t * ux;
+    const py = label.y + t * uy;
+    polygon.forEach(([ax, ay], i) => {
+      const [bx, by] = polygon[(i + 1) % polygon.length]!;
+      // Inward edge normal; the text runs along (uy, -ux).
+      const flip = (ay - by) * (mx - ax) + (bx - ax) * (my - ay) < 0 ? -1 : 1;
+      const nx = flip * (ay - by);
+      const ny = flip * (bx - ax);
+      const inside = nx * (px - ax) + ny * (py - ay);
+      const along = Math.abs(nx * uy - ny * ux);
+      if (inside < 0) half = 0;
+      else if (along > 1e-12) half = Math.min(half, inside / along);
+    });
+  }
+  return 2 * half * LABEL_MARGIN;
 }
 
 function faceArt(
@@ -272,7 +307,16 @@ function faceArt(
         );
       })
     : [label(texts(0), center, v, inradius * shape.textScale, frame)];
-  return { ...frame, half, labels };
+  const cutCorners = corners.map((c) => add(c, scale(sub(middle, c), shape.cut)));
+  const polygon = cutCorners.map((c): [number, number] => {
+    const d = sub(c, center);
+    return [dot3(d, frame.u), dot3(d, frame.v)];
+  });
+  return {
+    ...frame,
+    half,
+    labels: labels.map((l) => ({ ...l, maxWidth: fitWidth(l, polygon) })),
+  };
 }
 
 /** Rest pose on the table with local `top` up and local `forward` turned toward the viewer (+Z). */

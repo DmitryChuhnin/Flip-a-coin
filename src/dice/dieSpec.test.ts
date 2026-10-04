@@ -13,12 +13,21 @@ import {
 import { hullVectors } from '../toss/body';
 import { remapRotation, upFace } from '../toss/faces';
 import { atlasLayout, createDieGeometry, faceUv } from './dieMesh';
-import { createDie, DIE_KINDS, type DieKind } from './dieSpec';
+import { createDie, DIE_KINDS, UNDERLINE, type DieKind } from './dieSpec';
 
 const GROUP_ORDER: Record<DieKind, number> = { d4: 12, d6: 24, d8: 24, d10: 10, d12: 60, d20: 60 };
 const SIDES: Record<DieKind, number> = { d4: 4, d6: 6, d8: 8, d10: 10, d12: 12, d20: 20 };
 
 const dice = Object.fromEntries(DIE_KINDS.map((kind) => [kind, createDie(kind)]));
+
+/** Point inside a convex polygon given in either winding order, with a small tolerance. */
+function insideConvex(polygon: (readonly [number, number])[], [px, py]: readonly [number, number]) {
+  const sides = polygon.map(([ax, ay], i) => {
+    const [bx, by] = polygon[(i + 1) % polygon.length]!;
+    return (bx - ax) * (py - ay) - (by - ay) * (px - ax);
+  });
+  return sides.every((c) => c >= -1e-9) || sides.every((c) => c <= 1e-9);
+}
 
 /** Rest pose with face `index` up, turned by `yaw` about the vertical. */
 function upPose(kind: DieKind, index: number, yaw: number) {
@@ -90,7 +99,7 @@ describe.each(DIE_KINDS)('%s', (kind) => {
     expect(geometry.groups.map((g) => g.materialIndex)).toEqual([0, 1]);
   });
 
-  it('maps every numbered face into its own atlas cell and keeps labels on the face', () => {
+  it('maps every numbered face into its own atlas cell', () => {
     const layout = atlasLayout(die.art.length);
     die.shape.faces.forEach((face, f) => {
       const column = f % layout.columns;
@@ -102,12 +111,35 @@ describe.each(DIE_KINDS)('%s', (kind) => {
         expect(v).toBeGreaterThanOrEqual(1 - (row + 1) / layout.rows - 1e-9);
         expect(v).toBeLessThanOrEqual(1 - row / layout.rows + 1e-9);
       }
-      for (const label of die.art[f]!.labels) {
-        expect(Math.hypot(label.x, label.y) + label.height / 2).toBeLessThan(die.art[f]!.half);
+    });
+  });
+
+  it('keeps every label box, underline included, on the cut face', () => {
+    die.shape.faces.forEach((face, f) => {
+      const art = die.art[f]!;
+      const polygon = face.map((i) => {
+        const d = sub(die.shape.points[i]!, art.center);
+        return [dot3(d, art.u), dot3(d, art.v)] as const;
+      });
+      for (const label of art.labels) {
         expect(Math.hypot(...label.up)).toBeCloseTo(1, 9);
         expect(label.height).toBeGreaterThan(0);
+        const [ux, uy] = label.up;
+        const below = label.underline ? UNDERLINE.gap + UNDERLINE.thickness : 0;
+        for (const t of [label.height / 2, -label.height * (0.5 + below)]) {
+          for (const s of [label.maxWidth / 2, -label.maxWidth / 2]) {
+            const p = [label.x + t * ux + s * uy, label.y + t * uy - s * ux] as const;
+            expect(insideConvex(polygon, p)).toBe(true);
+          }
+        }
       }
     });
+  });
+
+  it('leaves each digit at least 0.7 of its height in width', () => {
+    for (const label of die.art.flatMap((a) => a.labels)) {
+      expect(label.maxWidth / label.height / label.text.length).toBeGreaterThanOrEqual(0.7);
+    }
   });
 
   it('underlines 6 and 9 and nothing else', () => {

@@ -62,6 +62,10 @@ shadow match the simulation. Numbers are drawn into one canvas texture with a ce
 to keep about 220 texels per world unit, which stays sharp after the dolly on a phone. Glyph
 geometry or per-face textures would add a font file or dozens of textures to the bundle.
 
+Each label carries `maxWidth`, the widest text that stays on the cut face over the label's height
+and underline. The canvas squeezes wider text to it, so a font with wider digits than expected
+narrows the number instead of printing it onto the untextured bevel.
+
 ## The item is chosen by a temporary URL parameter
 
 `?item=d4` to `?item=d20` selects a die; a missing or unknown value gives the coin. This is a stand-in

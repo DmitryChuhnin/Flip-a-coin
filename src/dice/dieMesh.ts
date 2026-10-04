@@ -8,7 +8,7 @@ import {
 } from 'three';
 import { cross, dot3, type Vec3 } from '../math/quat';
 import { centroid, sub } from '../math/polyhedron';
-import type { DieFaceArt, DieModel } from './dieSpec';
+import { UNDERLINE, type DieFaceArt, type DieModel } from './dieSpec';
 
 const BODY_COLOR = 0xe6e1d6;
 const BODY_CSS = '#e6e1d6';
@@ -105,7 +105,8 @@ function paintAtlas(die: DieModel): HTMLCanvasElement {
       // Digit height is the ascent above the baseline; the font size is scaled to match it.
       const size = (100 * height) / Math.max(1, sample.actualBoundingBoxAscent);
       ctx.font = `bold ${size}px system-ui, sans-serif`;
-      const width = ctx.measureText(label.text).width;
+      const maxWidth = label.maxWidth * pxPerUnit;
+      const width = Math.min(maxWidth, ctx.measureText(label.text).width);
       ctx.save();
       ctx.translate(
         left + (0.5 + label.x / (2 * art.half)) * cellPx,
@@ -113,9 +114,10 @@ function paintAtlas(die: DieModel): HTMLCanvasElement {
       );
       // Canvas y runs down, so the face-frame up vector (x, y) is (x, -y) on the canvas.
       ctx.rotate(Math.atan2(label.up[0], label.up[1]));
-      ctx.fillText(label.text, 0, height / 2);
+      ctx.fillText(label.text, 0, height / 2, maxWidth);
       if (label.underline) {
-        ctx.fillRect(-width / 2, height / 2 + height * 0.12, width, height * 0.1);
+        const { gap, thickness } = UNDERLINE;
+        ctx.fillRect(-width / 2, height / 2 + height * gap, width, height * thickness);
       }
       ctx.restore();
     }
