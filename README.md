@@ -3,6 +3,9 @@
 A casual mobile-first browser game: a 3D coin lies on a table, and a tap tosses it. Built with
 three.js, TypeScript and Vite. The production build is served from `/flip-a-coin/`.
 
+Dice are available behind a temporary URL parameter until the game has its own selector:
+`?item=d4`, `d6`, `d8`, `d10`, `d12` or `d20`. A missing or unknown value gives the coin.
+
 ## Requirements
 
 Node.js 24 (see `.nvmrc`).
@@ -24,17 +27,22 @@ preview server).
 
 - `src/main.ts`: entry point; WebGL2 check, render loop, pause while the tab is hidden.
 - `src/game.ts`: toss states (`loading`, `idle`, `flying`, `result`, `error`), tap and Space/Enter
-  input, result announcement, camera dolly. Exposes `data-toss-state` and `data-toss-count` on
-  `<body>`.
+  input, result announcement and the rolled number caption, camera dolly. Exposes
+  `data-toss-state`, `data-toss-count` and `data-item` on `<body>`.
+- `src/items.ts`: the tossable items (coin and dice), the `?item=` selector, announcements.
 - `src/scene/createScene.ts`: renderer, table, lights, resize handling.
 - `src/scene/camera.ts`: camera placement that keeps the play zone on the table fully in view
   for any aspect ratio; `src/scene/dolly.ts` moves it toward the coin after a toss.
 - `src/coin/`: coin dimensions, convex hull, faces and symmetries (`coinSpec.ts`) and the
   procedural three.js mesh (`coinMesh.ts`).
+- `src/dice/`: d4 to d20 shapes, numbering, faces and rest poses (`dieSpec.ts`) and the mesh with
+  a number texture atlas (`dieMesh.ts`).
+- `src/math/`: quaternions (`quat.ts`), convex faces and chamfering (`polyhedron.ts`), rotation
+  groups of point sets (`symmetry.ts`).
 - `src/random.ts`: uniform integers from `crypto.getRandomValues`.
 - `src/physics/`: Rapier world for one toss (`simulate.ts`) and the recorded frame format
   (`frames.ts`).
-- `src/toss/`: launch profiles, toss planning with rejection and fallback (`planToss.ts`), face
+- `src/toss/`: body definition and validation (`body.ts`), launch profiles, toss planning with rejection and fallback (`planToss.ts`), face
   remapping by shape symmetry (`faces.ts`), playback (`playback.ts`). `engine.ts` is the lazily
   loaded entry for the physics chunk.
 - `docs/decisions.md`: design decisions and the alternatives they rule out.
