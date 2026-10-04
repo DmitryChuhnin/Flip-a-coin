@@ -35,6 +35,9 @@ wall) is not a result. `planToss` rejects it, as well as a flight that has not s
 simulated, and simulates again with a new launch. After three rejections it plays a trajectory
 precomputed at startup, moved to where the coin lies and remapped to the chosen side.
 
+A flight is also rejected when the remap needs a turn but the coin spends less than 0.2 s above its
+own radius: the turn would have no airborne stretch to hide in.
+
 ## Physics world scale
 
 Gravity is 20 units/s² rather than 9.81 with the coin about 1.2 units across. At a realistic scale
