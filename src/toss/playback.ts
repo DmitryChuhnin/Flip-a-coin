@@ -49,9 +49,10 @@ export class FrameClock {
 
   /** Seconds since the previous tick, at most `maxStepS`; 0 on the first tick after a reset. */
   tick(nowMs: number): number {
+    if (!Number.isFinite(nowMs)) return 0;
     const last = this.last;
     this.last = nowMs;
-    if (last === null || !Number.isFinite(nowMs) || nowMs <= last) return 0;
+    if (last === null || nowMs <= last) return 0;
     return Math.min((nowMs - last) / 1000, this.maxStepS);
   }
 

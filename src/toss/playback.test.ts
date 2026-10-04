@@ -94,5 +94,7 @@ describe('FrameClock', () => {
     clock.tick(1000);
     expect(clock.tick(900)).toBe(0);
     expect(clock.tick(Number.NaN)).toBe(0);
+    expect(clock.tick(Number.POSITIVE_INFINITY)).toBe(0);
+    expect(clock.tick(916)).toBeCloseTo(0.016, 6);
   });
 });
