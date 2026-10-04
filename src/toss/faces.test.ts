@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { COIN_FACES, COIN_SYMMETRIES } from '../coin/coinSpec';
+import { COIN_BODY, COIN_FACES } from '../coin/coinSpec';
 import { fromAxisAngle, IDENTITY, multiply, rotate, type Quat } from '../math/quat';
-import { remapRotation, upFace } from './faces';
+import { buildRemapTable, remapRotation, upFace } from './faces';
+
+const REMAPS = COIN_BODY.remaps;
 
 const HALF_TURN_X = fromAxisAngle([1, 0, 0], Math.PI);
 
@@ -45,7 +47,7 @@ describe('remapRotation', () => {
     for (const desired of [0, 1]) {
       it(`puts face ${desired} up exactly for landed pose #${p}`, () => {
         const landed = upFace(pose, COIN_FACES).index;
-        const r = remapRotation(landed, desired, COIN_FACES, COIN_SYMMETRIES);
+        const r = remapRotation(REMAPS, landed, desired);
         const shownUp = rotate(multiply(pose, r), COIN_FACES[desired]!.normal);
         const landedUp = rotate(pose, COIN_FACES[landed]!.normal);
         for (let k = 0; k < 3; k += 1) expect(shownUp[k]).toBeCloseTo(landedUp[k]!, 6);
@@ -55,12 +57,12 @@ describe('remapRotation', () => {
   }
 
   it('returns identity when the landed face is already the desired one', () => {
-    expect(remapRotation(0, 0, COIN_FACES, COIN_SYMMETRIES)).toEqual(IDENTITY);
-    expect(remapRotation(1, 1, COIN_FACES, COIN_SYMMETRIES)).toEqual(IDENTITY);
+    expect(remapRotation(REMAPS, 0, 0)).toEqual(IDENTITY);
+    expect(remapRotation(REMAPS, 1, 1)).toEqual(IDENTITY);
   });
 
   it('flips about the horizontal symmetry axis closest to the preferred axis', () => {
-    const r = remapRotation(0, 1, COIN_FACES, COIN_SYMMETRIES, [-0.1, 0, -1]);
+    const r = remapRotation(REMAPS, 0, 1, [-0.1, 0, -1]);
     // Half-turn about -Z, the 90 degree axis, with the axis sign following the preference.
     expect(r[3]).toBeCloseTo(0, 9);
     expect(r[0]).toBeCloseTo(0, 6);
@@ -68,10 +70,11 @@ describe('remapRotation', () => {
   });
 
   it('throws when no symmetry maps the desired face onto the landed one', () => {
-    expect(() => remapRotation(0, 1, COIN_FACES, [IDENTITY])).toThrow(/No symmetry/);
+    expect(() => buildRemapTable(COIN_FACES, [IDENTITY])).toThrow(/No symmetry/);
   });
 
   it('throws on a face index outside the list', () => {
-    expect(() => remapRotation(0, 2, COIN_FACES, COIN_SYMMETRIES)).toThrow(RangeError);
+    expect(() => remapRotation(REMAPS, 0, 2)).toThrow(RangeError);
+    expect(() => remapRotation(REMAPS, -1, 0)).toThrow(RangeError);
   });
 });

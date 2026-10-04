@@ -15,13 +15,13 @@ import {
   type TossPlan,
   type Trajectory,
 } from './planToss';
-import { PROFILES } from './profiles';
+import { COIN_PROFILES } from './profiles';
 
 let fallback: Trajectory;
 
 beforeAll(async () => {
   await initPhysics();
-  fallback = precomputeFallback(COIN_BODY, INITIAL_POSE, simulateToss);
+  fallback = precomputeFallback(COIN_BODY, simulateToss);
 });
 
 function lastPose(plan: Pick<TossPlan<CoinValue>, 'frames'>): Pose {
@@ -123,7 +123,7 @@ describe('planToss', () => {
       position: [-1.2, INITIAL_POSE.position[1], 2],
       quaternion: multiply(fromAxisAngle([0, 1, 0], 0.7), fromAxisAngle([1, 0, 0], Math.PI)),
     };
-    const anchored = anchorTrajectory(fallback, start);
+    const anchored = anchorTrajectory(fallback, start, COIN_BODY);
     const first = framePose(anchored.frames, 0);
     for (let k = 0; k < 3; k += 1) expect(first.position[k]).toBeCloseTo(start.position[k]!, 5);
     const rest = framePose(anchored.frames, frameCount(anchored.frames) - 1);
@@ -159,7 +159,7 @@ describe('planToss', () => {
   it('uses every profile without reduced motion', () => {
     const source = seededSource(32);
     const seen = new Set(Array.from({ length: 60 }, () => plan({ source }).profile));
-    expect([...seen].sort()).toEqual(PROFILES.map((p) => p.name).sort());
+    expect([...seen].sort()).toEqual(COIN_PROFILES.map((p) => p.name).sort());
     expect(seen.has('reduced')).toBe(false);
   });
 

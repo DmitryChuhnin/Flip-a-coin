@@ -1,8 +1,7 @@
-import { CIRCUMRADIUS, THICKNESS } from '../coin/coinSpec';
 import type { Pose, Vec3 } from '../math/quat';
-import { GRAVITY } from '../physics/simulate';
+import { GRAVITY } from '../physics/frames';
 
-export type ProfileName = 'normal' | 'edge' | 'spinner' | 'reduced';
+export type ProfileName = 'normal' | 'edge' | 'spinner' | 'tumble' | 'reduced';
 
 export interface Impulse {
   linearVelocity: Vec3;
@@ -21,9 +20,11 @@ type Flip =
    * ratio) the coin axis precesses to horizontal; lift and spin are tuned so that happens at
    * touchdown, and the coin lands on its rim turning about the vertical.
    */
-  | { perVerticalSpin: readonly [min: number, max: number] };
+  | { perVerticalSpin: readonly [min: number, max: number] }
+  /** Spin speed in rad/s about an axis uniform over the sphere; replaces the vertical spin. */
+  | { tumble: readonly [min: number, max: number] };
 
-interface ProfileSpec {
+export interface ProfileSpec {
   name: ProfileName;
   weight: number;
   /** Upward launch speed, units/s. */
@@ -31,12 +32,27 @@ interface ProfileSpec {
   /** Spin about the vertical axis, rad/s, random sign. */
   verticalSpin: readonly [min: number, max: number];
   flip: Flip;
-  /** Horizontal drift along the flip axis, units/s, random sign. Rolls a coin landing on edge. */
+  /**
+   * Horizontal drift along the flip axis (a random horizontal axis when tumbling), units/s,
+   * random sign. Rolls a coin landing on edge or a die after its bounces.
+   */
   roll: readonly [min: number, max: number];
   angularDamping: number;
 }
 
-export const PROFILES: readonly ProfileSpec[] = [
+export interface Launch {
+  /** Picked at random by weight for every toss without reduced motion. */
+  profiles: readonly ProfileSpec[];
+  reduced: ProfileSpec;
+  /** Body center height at touchdown: lying on a face, and standing on an edge. */
+  touchdown: { flat: number; edge: number };
+  /** Straight-up toss recorded once per body; spin rates are tried in order until one rests flat. */
+  fallback: { lift: number; halfTurns: readonly number[] };
+  /** How far the walls move inward for this body, see `TossInput.wallInset`. */
+  wallInset: number;
+}
+
+export const COIN_PROFILES: readonly ProfileSpec[] = [
   {
     name: 'normal',
     weight: 70,
@@ -67,7 +83,7 @@ export const PROFILES: readonly ProfileSpec[] = [
   },
 ];
 
-export const REDUCED_MOTION_PROFILE: ProfileSpec = {
+export const COIN_REDUCED_PROFILE: ProfileSpec = {
   name: 'reduced',
   weight: 1,
   lift: [7.5, 8.5],
@@ -75,6 +91,26 @@ export const REDUCED_MOTION_PROFILE: ProfileSpec = {
   flip: { halfTurns: [3, 4] },
   roll: [0, 0],
   angularDamping: 0.3,
+};
+
+export const DIE_PROFILE: ProfileSpec = {
+  name: 'tumble',
+  weight: 1,
+  lift: [7.5, 8.5],
+  verticalSpin: [0, 0],
+  flip: { tumble: [12, 20] },
+  roll: [0.3, 1],
+  angularDamping: 0.4,
+};
+
+export const DIE_REDUCED_PROFILE: ProfileSpec = {
+  name: 'reduced',
+  weight: 1,
+  lift: [6, 7],
+  verticalSpin: [0, 0],
+  flip: { tumble: [6, 10] },
+  roll: [0.2, 0.6],
+  angularDamping: 0.4,
 };
 
 /** Where tosses aim to land, in table coordinates; the coin drifts back toward it. */
@@ -91,20 +127,39 @@ function flightTime(lift: number, startY: number, touchdownY: number): number {
   );
 }
 
-export function sampleImpulse(profile: ProfileSpec, start: Pose, unit: Unit): Impulse {
+const scaled = (v: Vec3, k: number): Vec3 => [v[0] * k, v[1] * k, v[2] * k];
+
+/** Uniform direction on the unit sphere. */
+function sphereAxis(unit: Unit): Vec3 {
+  const y = 2 * unit() - 1;
+  const a = unit() * 2 * Math.PI;
+  const r = Math.sqrt(1 - y * y);
+  return [r * Math.cos(a), y, r * Math.sin(a)];
+}
+
+export function sampleImpulse(
+  profile: ProfileSpec,
+  start: Pose,
+  unit: Unit,
+  touchdown: Launch['touchdown'],
+): Impulse {
   const lift = between(profile.lift, unit);
   const startY = start.position[1];
   const halfTurns = 'halfTurns' in profile.flip ? pick(profile.flip.halfTurns, unit) : 0;
   const onEdge = halfTurns % 1 !== 0;
-  const flightS = flightTime(lift, startY, onEdge ? CIRCUMRADIUS : THICKNESS / 2);
+  const flightS = flightTime(lift, startY, onEdge ? touchdown.edge : touchdown.flat);
 
   const yaw = unit() * 2 * Math.PI;
   const axis: Vec3 = [Math.cos(yaw), 0, Math.sin(yaw)];
   const verticalSpin = between(profile.verticalSpin, unit);
+  const flip = profile.flip;
+  const tumble = 'tumble' in flip ? scaled(sphereAxis(unit), between(flip.tumble, unit)) : null;
   const flipRate =
-    'halfTurns' in profile.flip
+    'halfTurns' in flip
       ? ((halfTurns * Math.PI) / flightS) * (1 + (unit() - 0.5) * 0.06)
-      : verticalSpin * between(profile.flip.perVerticalSpin, unit);
+      : 'perVerticalSpin' in flip
+        ? verticalSpin * between(flip.perVerticalSpin, unit)
+        : 0;
 
   const targetAngle = unit() * 2 * Math.PI;
   const targetRadius = Math.sqrt(unit()) * LANDING_TARGET.radius;
@@ -119,7 +174,7 @@ export function sampleImpulse(profile: ProfileSpec, start: Pose, unit: Unit): Im
       lift,
       (targetZ - z) / flightS + axis[2] * roll,
     ],
-    angularVelocity: [axis[0] * flipRate, verticalSpin * sign(unit), axis[2] * flipRate],
+    angularVelocity: tumble ?? [axis[0] * flipRate, verticalSpin * sign(unit), axis[2] * flipRate],
     angularDamping: profile.angularDamping,
   };
 }

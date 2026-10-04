@@ -1,6 +1,11 @@
 import { normalize, type Pose } from '../math/quat';
 
 export const STEP_S = 1 / 60;
+
+// World units are about 2 cm. Real gravity at this scale throws the coin out of frame, so
+// gravity is tuned for a ~3-unit apex and a ~1 s flight instead. Kept here, outside the Rapier
+// module, because launch profiles in the main chunk use it.
+export const GRAVITY = 20;
 /** Values per frame: x, y, z, qx, qy, qz, qw. */
 export const FRAME_STRIDE = 7;
 

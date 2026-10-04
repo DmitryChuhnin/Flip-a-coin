@@ -1,13 +1,9 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { cross, length3, rotate, type Pose, type Vec3 } from '../math/quat';
 import { PADDING, PLAY_ZONE } from '../scene/camera';
-import { FRAME_STRIDE, STEP_S } from './frames';
+import { FRAME_STRIDE, GRAVITY, STEP_S } from './frames';
 
 export const MAX_SIMULATED_S = 6;
-
-// World units are about 2 cm. Real gravity at this scale throws the coin out of frame, so
-// gravity is tuned for a ~3-unit apex and a ~1 s flight instead.
-export const GRAVITY = 20;
 
 const RESTITUTION = 0.35;
 const FRICTION = 0.5;
@@ -33,6 +29,11 @@ export interface TossInput {
   angularVelocity: Vec3;
   /** Damping keeps a wobbling coin from rocking for many seconds. */
   angularDamping?: number;
+  /**
+   * Moves the walls inward. The camera keeps the walls in view only at table level, so a tall
+   * body leaning on a side wall near the viewer would otherwise poke past the screen edge.
+   */
+  wallInset?: number;
 }
 
 export interface Contact {
@@ -56,12 +57,13 @@ export async function initPhysics(): Promise<void> {
   ready = true;
 }
 
-function addStaticBoxes(world: RAPIER.World): RAPIER.Collider {
+function addStaticBoxes(world: RAPIER.World, inset: number): RAPIER.Collider {
   const surface = (desc: RAPIER.ColliderDesc) =>
     world.createCollider(desc.setRestitution(RESTITUTION).setFriction(FRICTION));
 
   const table = surface(RAPIER.ColliderDesc.cuboid(50, 0.5, 50).setTranslation(0, -0.5, 0));
-  const { x, z } = WALL_INNER;
+  const x = WALL_INNER.x - inset;
+  const z = WALL_INNER.z - inset;
   const t = WALL_HALF_THICKNESS;
   const h = WALL_HALF_HEIGHT;
   surface(RAPIER.ColliderDesc.cuboid(t, h, z + 2 * t).setTranslation(x + t, h, 0));
@@ -92,7 +94,7 @@ export function simulateToss(input: TossInput): Simulation {
   const events = new RAPIER.EventQueue(true);
   try {
     world.timestep = STEP_S;
-    const table = addStaticBoxes(world);
+    const table = addStaticBoxes(world, input.wallInset ?? 0);
 
     const [px, py, pz] = input.start.position;
     const [qx, qy, qz, qw] = input.start.quaternion;
@@ -108,7 +110,7 @@ export function simulateToss(input: TossInput): Simulation {
         .setCcdEnabled(true),
     );
     const hullDesc = RAPIER.ColliderDesc.convexHull(input.hull);
-    if (!hullDesc) throw new Error('Degenerate coin hull');
+    if (!hullDesc) throw new Error('Degenerate hull');
     world.createCollider(
       hullDesc
         .setDensity(input.density)

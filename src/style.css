@@ -36,6 +36,21 @@ body {
   text-align: center;
 }
 
+/* Rolled number above the table; the live region announces it, so it is aria-hidden. */
+#roll-number {
+  position: fixed;
+  top: max(8vh, env(safe-area-inset-top));
+  left: 0;
+  right: 0;
+  margin: 0;
+  text-align: center;
+  font-size: 4.5rem;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+
+#roll-number[hidden],
 #webgl-error[hidden] {
   display: none;
 }
