@@ -45,5 +45,5 @@ one second.
 
 `@dimforge/rapier3d-compat` ships its wasm inlined as base64, which runs unchanged in Node for unit
 tests but gzips poorly. A build-only plugin in `vite.config.ts` moves the blob into a `.wasm` asset
-that the same `init()` fetches. The build fails if a Rapier update changes the inlined call.
+that the same `init()` fetches. The build fails if a Rapier update moves the entry file or changes the inlined call.
 The physics chunk is loaded with a dynamic import, so the scene renders before it arrives.
