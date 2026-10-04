@@ -13,11 +13,12 @@ Node.js 24 (see `.nvmrc`).
 npm ci                          # install dependencies
 npm run dev                     # dev server with hot reload
 npx playwright install chromium # once, before the first `npm run check`
-npm run check                   # typecheck, lint, format check, unit tests, build, e2e tests
+npm run check                   # typecheck, lint, format check, unit tests, build + e2e tests
 ```
 
 Separate steps: `npm run typecheck`, `npm run lint`, `npm run format`, `npm test`,
-`npm run build`, `npm run preview`, `npm run test:e2e`.
+`npm run build`, `npm run preview`, `npm run test:e2e` (builds, then runs Playwright against the
+preview server).
 
 ## Layout
 

@@ -22,9 +22,10 @@ export default defineConfig({
       },
     },
   ],
+  // Serves the existing dist/ without rebuilding; `npm run test:e2e` builds first.
   webServer: {
-    command: `npm run build && npm run preview -- --port ${PORT} --strictPort`,
+    command: `npm run preview -- --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}/flip-a-coin/`,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
   },
 });
