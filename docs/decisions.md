@@ -45,7 +45,14 @@ Each face prints the three values of its corners, each pointing at its own corne
 outcome to the recorded one, then turns the whole flight about the vertical so that its first frame
 is the start pose. Turning the recorded flight by the full rotation from its first frame to the
 start would tip a die whose start rests on another face, and it would land tilted. With S the rest
-stays on a face of the hull, so the remap at the end still shows a flat outcome.
+stays on a face of the hull.
+
+The replay is not re-simulated, so two gaps are closed by hand between the first frame and the
+first landing. The start's own tilt (a die leaning on a wall rests up to 10° off flat) is eased
+out, so the body lands flat. The body drifts sideways just enough to keep its roll after landing
+inside the walls: the recorded fallback rolls up to about 2 units after it lands, and turned toward
+a nearby wall it would pass through it. While airborne a corner can still cross a wall by up to
+about 0.2 units for a moment, as the spinning body grows wider than at rest.
 
 ## Dice launch lower and keep further from the side walls
 

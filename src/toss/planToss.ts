@@ -1,8 +1,27 @@
-import { conjugate, multiply, rotate, type Pose, type Quat, type Vec3 } from '../math/quat';
-import { durationS, FRAME_STRIDE, frameCount, framePose, GRAVITY, STEP_S } from '../physics/frames';
+import { add, scale, sub } from '../math/polyhedron';
+import {
+  conjugate,
+  IDENTITY,
+  length3,
+  multiply,
+  rotate,
+  slerp,
+  type Pose,
+  type Quat,
+  type Vec3,
+} from '../math/quat';
+import {
+  durationS,
+  FRAME_STRIDE,
+  frameCount,
+  framePose,
+  GRAVITY,
+  STEP_S,
+  WALL_INNER,
+} from '../physics/frames';
 import type { Contact, Simulation, TossInput } from '../physics/simulate';
 import { pickWeighted, randomInt, randomUnit, type Uint32Source } from '../random';
-import type { TossBody } from './body';
+import { hullVectors, type TossBody } from './body';
 import { remapRotation, upFace } from './faces';
 import { sampleImpulse, type Impulse, type ProfileName } from './profiles';
 
@@ -107,11 +126,23 @@ function yawOf(q: Quat): Quat {
   return length < 1e-9 ? [0, 0, 0, 1] : [0, q[1] / length, 0, q[3] / length];
 }
 
+/** Sideways shift that keeps the given center positions `reach` away from the side walls. */
+function wallShift(positions: Vec3[], reach: number, inset: number): Vec3 {
+  const fit = (axis: 0 | 2, wall: number): number => {
+    const limit = wall - inset - reach;
+    const low = Math.min(...positions.map((p) => p[axis]));
+    const high = Math.max(...positions.map((p) => p[axis]));
+    if (high - low > 2 * limit) return -(high + low) / 2;
+    return Math.min(Math.max(0, -limit - low), limit - high);
+  };
+  return [fit(0, WALL_INNER.x), 0, fit(2, WALL_INNER.z)];
+}
+
 /**
  * Re-anchors a trajectory that started at rest elsewhere so it starts at `start`. The body frame
- * is relabelled by a symmetry S that takes the start's up face to the recorded one, so the shape
- * and its rest on a face are kept; the rest of the gap is a turn about the vertical, applied to
- * the whole flight around the start point.
+ * is relabelled by a symmetry S that takes the start's up face to the recorded one, and the flight
+ * is turned about the vertical. Until the first landing the start's tilt is eased out and the body
+ * drifts sideways just enough to keep the roll after landing inside the walls.
  */
 export function anchorTrajectory<V extends string>(
   trajectory: Trajectory,
@@ -122,31 +153,32 @@ export function anchorTrajectory<V extends string>(
   const recordedUp = upFace(origin.quaternion, body.faces).index;
   const startUp = upFace(start.quaternion, body.faces).index;
   const relabel = body.remaps[recordedUp]![startUp]![0]!;
-  // turn · origin · relabel = start exactly; turn is a yaw up to the start's own small tilt.
+  // turn · origin · relabel = start exactly; turn = tilt · yaw, tilt is the start's own small lean.
   const turn = multiply(
     start.quaternion,
     multiply(conjugate(relabel), conjugate(origin.quaternion)),
   );
   const yaw = yawOf(turn);
+  const tilt = multiply(turn, conjugate(yaw));
+
+  const count = frameCount(trajectory.frames);
+  const landing = Math.max(1, Math.min(count - 1, trajectory.contacts[0]?.frame ?? count - 1));
+  const centers = Array.from({ length: count }, (_, i) => {
+    const offset = rotate(yaw, sub(framePose(trajectory.frames, i).position, origin.position));
+    return add(start.position, offset);
+  });
+  const reach = Math.max(...hullVectors(body.hull).map(length3));
+  const shift = wallShift(centers.slice(landing), reach, body.launch.wallInset);
+
   const frames = new Float32Array(trajectory.frames.length);
-  for (let i = 0; i < frameCount(frames); i += 1) {
-    const pose = framePose(trajectory.frames, i);
-    const offset = rotate(yaw, [
-      pose.position[0] - origin.position[0],
-      pose.position[1] - origin.position[1],
-      pose.position[2] - origin.position[2],
-    ]);
-    const q = multiply(turn, multiply(pose.quaternion, relabel));
-    frames.set(
-      [
-        start.position[0] + offset[0],
-        start.position[1] + offset[1],
-        start.position[2] + offset[2],
-        ...q,
-      ],
-      i * FRAME_STRIDE,
+  centers.forEach((center, i) => {
+    const s = Math.min(1, i / landing);
+    const q = multiply(
+      slerp(tilt, IDENTITY, s),
+      multiply(yaw, multiply(framePose(trajectory.frames, i).quaternion, relabel)),
     );
-  }
+    frames.set([...add(center, scale(shift, s)), ...q], i * FRAME_STRIDE);
+  });
   return { frames, contacts: trajectory.contacts };
 }
 

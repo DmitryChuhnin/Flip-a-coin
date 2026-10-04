@@ -1,8 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { CIRCUMRADIUS, COIN_BODY, INITIAL_POSE, THICKNESS } from '../coin/coinSpec';
 import { upFace } from '../toss/faces';
-import { FRAME_STRIDE, frameCount, framePose, STEP_S } from './frames';
-import { initPhysics, MAX_SIMULATED_S, simulateToss, WALL_INNER, type TossInput } from './simulate';
+import { FRAME_STRIDE, frameCount, framePose, STEP_S, WALL_INNER } from './frames';
+import { initPhysics, MAX_SIMULATED_S, simulateToss, type TossInput } from './simulate';
 
 const TOSS: TossInput = {
   hull: COIN_BODY.hull,

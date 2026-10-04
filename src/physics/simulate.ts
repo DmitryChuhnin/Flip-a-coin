@@ -1,7 +1,6 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { cross, length3, rotate, type Pose, type Vec3 } from '../math/quat';
-import { PADDING, PLAY_ZONE } from '../scene/camera';
-import { FRAME_STRIDE, GRAVITY, STEP_S } from './frames';
+import { FRAME_STRIDE, GRAVITY, STEP_S, WALL_INNER } from './frames';
 
 export const MAX_SIMULATED_S = 6;
 
@@ -14,11 +13,6 @@ const SETTLE_ANGULAR = 0.08;
 const MIN_IMPACT_SPEED = 0.15;
 const WALL_HALF_THICKNESS = 0.5;
 const WALL_HALF_HEIGHT = 20;
-/** Inner wall faces: the play zone plus the margin the camera keeps visible. */
-export const WALL_INNER = {
-  x: PLAY_ZONE.width / 2 + PADDING,
-  z: PLAY_ZONE.depth / 2 + PADDING,
-} as const;
 
 export interface TossInput {
   /** Convex hull points in the body's local frame, origin at the center of mass. */

@@ -1,11 +1,17 @@
 import { normalize, type Pose } from '../math/quat';
+import { PADDING, PLAY_ZONE } from '../scene/camera';
 
 export const STEP_S = 1 / 60;
 
 // World units are about 2 cm. Real gravity at this scale throws the coin out of frame, so
 // gravity is tuned for a ~3-unit apex and a ~1 s flight instead. Kept here, outside the Rapier
-// module, because launch profiles in the main chunk use it.
+// module, with the walls, because the main chunk uses both.
 export const GRAVITY = 20;
+/** Inner wall faces: the play zone plus the margin the camera keeps visible. */
+export const WALL_INNER = {
+  x: PLAY_ZONE.width / 2 + PADDING,
+  z: PLAY_ZONE.depth / 2 + PADDING,
+} as const;
 /** Values per frame: x, y, z, qx, qy, qz, qw. */
 export const FRAME_STRIDE = 7;
 

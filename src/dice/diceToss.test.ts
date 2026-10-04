@@ -1,8 +1,10 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { fromAxisAngle, fromTo, multiply, type Pose } from '../math/quat';
+import { fromAxisAngle, fromTo, multiply, rotate, type Pose, type Quat } from '../math/quat';
 import { FRAME_STRIDE, frameCount, framePose } from '../physics/frames';
 import { initPhysics, simulateToss, type Simulation, type TossInput } from '../physics/simulate';
 import { seededSource } from '../testing/seededSource';
+import { wallOvershoot, wallStarts } from '../testing/wallStarts';
+import { hullVectors } from '../toss/body';
 import { upFace } from '../toss/faces';
 import {
   anchorTrajectory,
@@ -23,6 +25,8 @@ beforeAll(async () => {
   for (const kind of DIE_KINDS)
     fallbacks[kind] = precomputeFallback(dice[kind]!.body, simulateToss);
 });
+
+const dot4 = (a: Quat, b: Quat) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
 
 function lastPose(frames: Float32Array): Pose {
   return framePose(frames, frameCount(frames) - 1);
@@ -122,6 +126,22 @@ describe.each(DIE_KINDS)('%s toss', (kind) => {
     }
   });
 
+  it('lands the anchored fallback flat and inside the walls from a start leaning on a wall', () => {
+    const fallback = fallbacks[kind]!;
+    const landing = fallback.contacts[0]!.frame;
+    for (const start of wallStarts(body)) {
+      const anchored = anchorTrajectory(fallback, start, body);
+      const first = framePose(anchored.frames, 0);
+      for (let k = 0; k < 3; k += 1) expect(first.position[k]).toBeCloseTo(start.position[k]!, 5);
+      expect(Math.abs(dot4(first.quaternion, start.quaternion))).toBeCloseTo(1, 9);
+      expect(wallOvershoot(anchored.frames, body, landing)).toBeLessThanOrEqual(1e-6);
+      const rest = lastPose(anchored.frames);
+      expect(upFace(rest.quaternion, body.faces).tiltDeg).toBeLessThan(1);
+      const bottom = Math.min(...hullVectors(body.hull).map((p) => rotate(rest.quaternion, p)[1]));
+      expect(rest.position[1] + bottom).toBeGreaterThan(-1e-3);
+    }
+  });
+
   it('flies lower and shorter under reduced motion', () => {
     const apex = (p: TossPlan<string>) =>
       Math.max(
@@ -135,6 +155,7 @@ describe.each(DIE_KINDS)('%s toss', (kind) => {
     const normal = Array.from({ length: 20 }, () => plan({ source }));
     expect(reduced.every((p) => p.profile === 'reduced' || p.usedFallback)).toBe(true);
     const flown = reduced.filter((p) => !p.usedFallback);
+    expect(flown.length).toBeGreaterThan(0);
     expect(Math.max(...flown.map(apex))).toBeLessThan(Math.min(...normal.map(apex)));
   });
 });
