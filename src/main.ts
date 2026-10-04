@@ -1,5 +1,5 @@
 import './style.css';
-import { createScene } from './scene/createScene';
+import { createScene, type SceneHandle } from './scene/createScene';
 
 // Probed on a throwaway canvas: three.js r163+ needs WebGL2, and a failed WebGLRenderer
 // constructor logs to console.error before throwing.
@@ -17,14 +17,16 @@ function showWebGLError(): void {
   document.querySelector<HTMLElement>('#webgl-error')?.removeAttribute('hidden');
 }
 
-const canvas = document.querySelector<HTMLCanvasElement>('#scene');
-
-if (!canvas || !hasWebGL2()) {
-  showWebGLError();
-} else {
-  const scene = createScene(canvas, () => {
-    document.body.dataset.sceneReady = 'true';
-  });
+function startScene(canvas: HTMLCanvasElement): void {
+  let scene: SceneHandle;
+  try {
+    scene = createScene(canvas, () => {
+      document.body.dataset.sceneReady = 'true';
+    });
+  } catch {
+    showWebGLError();
+    return;
+  }
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
@@ -37,4 +39,12 @@ if (!canvas || !hasWebGL2()) {
   if (!document.hidden) {
     scene.start();
   }
+}
+
+const canvas = document.querySelector<HTMLCanvasElement>('#scene');
+
+if (canvas && hasWebGL2()) {
+  startScene(canvas);
+} else {
+  showWebGLError();
 }

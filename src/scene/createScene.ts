@@ -12,7 +12,8 @@ import {
 } from 'three';
 import { computeCameraParams } from './camera';
 
-// Must match the body background in style.css, which shows before the first frame.
+// Keep in sync with theme-color in index.html and the body background in style.css,
+// which shows before the first frame.
 const CLEAR_COLOR = 0x1c1d1f;
 const TABLE_COLOR = 0x3b3d40;
 const TABLE_SIZE = 1000;
@@ -21,7 +22,6 @@ const MAX_PIXEL_RATIO = 2;
 export interface SceneHandle {
   start(): void;
   stop(): void;
-  dispose(): void;
 }
 
 export function createScene(canvas: HTMLCanvasElement, onFirstFrame: () => void): SceneHandle {
@@ -33,9 +33,10 @@ export function createScene(canvas: HTMLCanvasElement, onFirstFrame: () => void)
 
   const scene = new Scene();
 
-  const tableGeometry = new PlaneGeometry(TABLE_SIZE, TABLE_SIZE);
-  const tableMaterial = new MeshStandardMaterial({ color: TABLE_COLOR, roughness: 0.9 });
-  const table = new Mesh(tableGeometry, tableMaterial);
+  const table = new Mesh(
+    new PlaneGeometry(TABLE_SIZE, TABLE_SIZE),
+    new MeshStandardMaterial({ color: TABLE_COLOR, roughness: 0.9 }),
+  );
   table.rotation.x = -Math.PI / 2;
   table.receiveShadow = true;
   scene.add(table);
@@ -90,14 +91,6 @@ export function createScene(canvas: HTMLCanvasElement, onFirstFrame: () => void)
     },
     stop() {
       renderer.setAnimationLoop(null);
-    },
-    dispose() {
-      renderer.setAnimationLoop(null);
-      window.removeEventListener('resize', resize);
-      tableGeometry.dispose();
-      tableMaterial.dispose();
-      sun.shadow.dispose();
-      renderer.dispose();
     },
   };
 }

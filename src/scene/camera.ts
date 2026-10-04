@@ -10,11 +10,13 @@ export interface CameraParams {
 /** Table area that must stay fully visible; centered at origin, depth runs along Z. */
 export const PLAY_ZONE = { width: 4, depth: 6 } as const;
 
+/** World-unit margin kept between the play zone and the screen edge. */
+export const PADDING = 0.25;
+
 export const DEFAULT_ASPECT = 9 / 16;
 
 const FOV_DEG = 40;
 const TILT_DEG = 50;
-const PADDING = 0.25;
 
 const DEG = Math.PI / 180;
 

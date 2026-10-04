@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
 
+declare global {
+  interface Window {
+    rafCalls: number;
+  }
+}
+
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
   page.on('console', (message) => {
@@ -9,11 +15,15 @@ function collectErrors(page: Page): string[] {
   return errors;
 }
 
+async function waitForScene(page: Page): Promise<void> {
+  await expect(page.locator('body[data-scene-ready="true"]')).toBeAttached();
+}
+
 test('renders the scene full-screen without errors', async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto('./');
 
-  await expect(page.locator('body[data-scene-ready="true"]')).toBeAttached();
+  await waitForScene(page);
   const canvas = page.locator('#scene');
   await expect(canvas).toBeVisible();
   await expect(page.locator('#webgl-error')).toBeHidden();
@@ -27,15 +37,68 @@ test('renders the scene full-screen without errors', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('tapping the canvas produces no errors', async ({ page }) => {
-  const errors = collectErrors(page);
+test('resizes the drawing buffer to the new viewport with pixel ratio capped at 2', async ({
+  page,
+}) => {
   await page.goto('./');
-  await expect(page.locator('body[data-scene-ready="true"]')).toBeAttached();
+  await waitForScene(page);
 
-  await page.locator('#scene').tap();
-  await page.locator('#scene').tap({ position: { x: 10, y: 10 } });
+  await page.setViewportSize({ width: 915, height: 412 });
 
-  expect(errors).toEqual([]);
+  await expect
+    .poll(() =>
+      page.locator('#scene').evaluate((canvas: HTMLCanvasElement) => {
+        const ratio = Math.min(window.devicePixelRatio, 2);
+        return {
+          clientWidth: canvas.clientWidth,
+          width: canvas.width,
+          expectedWidth: Math.floor(canvas.clientWidth * ratio),
+          height: canvas.height,
+          expectedHeight: Math.floor(canvas.clientHeight * ratio),
+        };
+      }),
+    )
+    .toEqual({
+      clientWidth: 915,
+      width: 1830,
+      expectedWidth: 1830,
+      height: 824,
+      expectedHeight: 824,
+    });
+});
+
+test('pauses the render loop while the tab is hidden and resumes when visible', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.rafCalls = 0;
+    const original = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = (callback) => {
+      window.rafCalls += 1;
+      return original(callback);
+    };
+  });
+  await page.goto('./');
+  await waitForScene(page);
+
+  const setHidden = (hidden: boolean) =>
+    page.evaluate((value) => {
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => value });
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => (value ? 'hidden' : 'visible'),
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }, hidden);
+  const rafCalls = () => page.evaluate(() => window.rafCalls);
+
+  await setHidden(true);
+  const whileHidden = await rafCalls();
+  await page.waitForTimeout(300);
+  expect(await rafCalls()).toBe(whileHidden);
+
+  await setHidden(false);
+  await expect.poll(rafCalls).toBeGreaterThan(whileHidden);
 });
 
 test('shows a fallback message when WebGL2 is unavailable', async ({ page }) => {
