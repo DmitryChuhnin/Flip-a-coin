@@ -7,6 +7,7 @@ import {
   DOLLY_FRACTION,
   dollyAmount,
   easeOutCubic,
+  isDollyMoving,
   retarget,
 } from './dolly';
 
@@ -64,5 +65,20 @@ describe('dollyAmount', () => {
   it('does not move under reduced motion', () => {
     const move = retarget(DOLLY_AT_REST, 1, 0, true);
     for (const t of [0, 0.1, 0.4, 5]) expect(dollyAmount(move, t, true)).toBe(0);
+  });
+});
+
+describe('isDollyMoving', () => {
+  it('is true until the dolly duration has passed', () => {
+    const move = retarget(DOLLY_AT_REST, 1, 0, false);
+    expect(isDollyMoving(move, 0, false)).toBe(true);
+    expect(isDollyMoving(move, DOLLY_DURATION_S * 0.99, false)).toBe(true);
+    expect(isDollyMoving(move, DOLLY_DURATION_S, false)).toBe(false);
+  });
+
+  it('is false at rest, for a move to where the camera already is and under reduced motion', () => {
+    expect(isDollyMoving(DOLLY_AT_REST, 0, false)).toBe(false);
+    expect(isDollyMoving(retarget(DOLLY_AT_REST, 0, 1, false), 1, false)).toBe(false);
+    expect(isDollyMoving(retarget(DOLLY_AT_REST, 1, 1, true), 1, true)).toBe(false);
   });
 });

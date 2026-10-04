@@ -3,7 +3,7 @@ import { INITIAL_POSE, type CoinValue } from './coin/coinSpec';
 import type { Pose } from './math/quat';
 import type { Vec3 } from './scene/camera';
 import type { SceneHandle } from './scene/createScene';
-import { DOLLY_AT_REST, dollyAmount, retarget } from './scene/dolly';
+import { DOLLY_AT_REST, dollyAmount, isDollyMoving, retarget } from './scene/dolly';
 import { STRINGS } from './strings';
 import type { TossEngine } from './toss/engine';
 import type { TossPlan } from './toss/planToss';
@@ -57,6 +57,7 @@ export function startGame(options: GameOptions): Game {
 
   function toss(): void {
     if (!engine || (state !== 'idle' && state !== 'result')) return;
+    if (isDollyMoving(dolly, nowS, reducedMotion())) return;
     try {
       plan = engine.plan(rest, reducedMotion());
     } catch (error) {
@@ -99,6 +100,8 @@ export function startGame(options: GameOptions): Game {
   });
   window.addEventListener('keydown', (event) => {
     if (event.repeat || (event.code !== 'Space' && event.key !== 'Enter')) return;
+    // Space and Enter on a focused control belong to that control.
+    if (event.target !== document.body || event.ctrlKey || event.metaKey || event.altKey) return;
     event.preventDefault();
     toss();
   });

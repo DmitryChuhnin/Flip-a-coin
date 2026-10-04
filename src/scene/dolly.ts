@@ -28,6 +28,17 @@ export function dollyAmount(
   return animation.from + (animation.to - animation.from) * p;
 }
 
+/** True while the camera is still travelling; never under reduced motion. */
+export function isDollyMoving(
+  animation: DollyAnimation,
+  nowS: number,
+  reducedMotion: boolean,
+): boolean {
+  return (
+    !reducedMotion && animation.from !== animation.to && nowS - animation.startS < DOLLY_DURATION_S
+  );
+}
+
 /** Starts a move from wherever the camera is now toward `to`. */
 export function retarget(
   animation: DollyAnimation,
