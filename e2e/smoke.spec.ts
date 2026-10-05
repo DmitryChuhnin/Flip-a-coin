@@ -46,17 +46,19 @@ test('resizes the drawing buffer to the new viewport with pixel ratio capped at 
   await page.setViewportSize({ width: 915, height: 412 });
 
   await expect
-    .poll(() =>
-      page.locator('#scene').evaluate((canvas: HTMLCanvasElement) => {
-        const ratio = Math.min(window.devicePixelRatio, 2);
-        return {
-          clientWidth: canvas.clientWidth,
-          width: canvas.width,
-          expectedWidth: Math.floor(canvas.clientWidth * ratio),
-          height: canvas.height,
-          expectedHeight: Math.floor(canvas.clientHeight * ratio),
-        };
-      }),
+    .poll(
+      () =>
+        page.locator('#scene').evaluate((canvas: HTMLCanvasElement) => {
+          const ratio = Math.min(window.devicePixelRatio, 2);
+          return {
+            clientWidth: canvas.clientWidth,
+            width: canvas.width,
+            expectedWidth: Math.floor(canvas.clientWidth * ratio),
+            height: canvas.height,
+            expectedHeight: Math.floor(canvas.clientHeight * ratio),
+          };
+        }),
+      { timeout: 15_000 },
     )
     .toEqual({
       clientWidth: 915,

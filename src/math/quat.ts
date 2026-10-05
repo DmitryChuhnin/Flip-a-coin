@@ -96,3 +96,15 @@ export function partialRotation(q: Quat, t: number): Quat {
   if (angle < 1e-9) return IDENTITY;
   return fromAxisAngle([q[0], q[1], q[2]], angle * t);
 }
+
+/** Shortest rotation taking unit vector `a` onto unit vector `b`. */
+export function fromTo(a: Vec3, b: Vec3): Quat {
+  const d = dot3(a, b);
+  if (d < -1 + 1e-12) {
+    // Opposite vectors: any axis perpendicular to `a` gives a half-turn.
+    const helper: Vec3 = Math.abs(a[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+    return fromAxisAngle(cross(a, helper), Math.PI);
+  }
+  const c = cross(a, b);
+  return normalize([c[0], c[1], c[2], 1 + d]);
+}

@@ -1,10 +1,9 @@
 import type { Object3D } from 'three';
-import { INITIAL_POSE, type CoinValue } from './coin/coinSpec';
+import type { Item } from './items';
 import type { Pose } from './math/quat';
 import type { Vec3 } from './scene/camera';
 import type { SceneHandle } from './scene/createScene';
 import { DOLLY_AT_REST, dollyAmount, isDollyMoving, retarget } from './scene/dolly';
-import { STRINGS } from './strings';
 import type { TossEngine } from './toss/engine';
 import type { TossPlan } from './toss/planToss';
 import { FrameClock, visualPose } from './toss/playback';
@@ -15,9 +14,13 @@ export type TossState = 'loading' | 'idle' | 'flying' | 'result' | 'error';
 export interface GameOptions {
   canvas: HTMLCanvasElement;
   scene: SceneHandle;
-  coin: Object3D;
+  item: Item;
+  /** Drawn object; its pose is set from the toss plan. */
+  model: Object3D;
   /** Polite live region that announces the result. */
   announcer: HTMLElement;
+  /** Large result text above the table, hidden while the item has none to show. */
+  caption: HTMLElement;
   loadEngine: () => Promise<TossEngine>;
   reducedMotion: () => boolean;
 }
@@ -28,14 +31,14 @@ export interface Game {
 }
 
 export function startGame(options: GameOptions): Game {
-  const { canvas, scene, coin, announcer, reducedMotion } = options;
+  const { canvas, scene, item, model, announcer, caption, reducedMotion } = options;
   const clock = new FrameClock();
   let state: TossState = 'loading';
   let engine: TossEngine | null = null;
-  let plan: TossPlan<CoinValue> | null = null;
+  let plan: TossPlan<string> | null = null;
   let flightS = 0;
   let nowS = 0;
-  let rest: Pose = INITIAL_POSE;
+  let rest: Pose = item.body.initialPose;
   let dolly = DOLLY_AT_REST;
   let dollyTarget: Vec3 = rest.position;
   let tossCount = 0;
@@ -46,8 +49,8 @@ export function startGame(options: GameOptions): Game {
   }
 
   function place(pose: Pose): void {
-    coin.position.set(...pose.position);
-    coin.quaternion.set(...pose.quaternion);
+    model.position.set(...pose.position);
+    model.quaternion.set(...pose.quaternion);
   }
 
   function fail(error: unknown): void {
@@ -55,11 +58,16 @@ export function startGame(options: GameOptions): Game {
     console.error(error);
   }
 
+  function showCaption(text: string | null): void {
+    caption.textContent = text ?? '';
+    caption.hidden = text === null;
+  }
+
   function toss(): void {
     if (!engine || (state !== 'idle' && state !== 'result')) return;
     if (isDollyMoving(dolly, nowS, reducedMotion())) return;
     try {
-      plan = engine.plan(rest, reducedMotion());
+      plan = engine.plan(item.body, rest, reducedMotion());
     } catch (error) {
       fail(error);
       return;
@@ -68,16 +76,18 @@ export function startGame(options: GameOptions): Game {
     tossCount += 1;
     document.body.dataset.tossCount = String(tossCount);
     announcer.textContent = '';
+    showCaption(null);
     dolly = retarget(dolly, 0, nowS, reducedMotion());
     setState('flying');
   }
 
-  function land(landed: TossPlan<CoinValue>): void {
+  function land(landed: TossPlan<string>): void {
     rest = visualPose(landed, landed.durationS);
     place(rest);
     dollyTarget = rest.position;
     dolly = retarget(dolly, 1, nowS, reducedMotion());
-    announcer.textContent = STRINGS[landed.outcome];
+    announcer.textContent = item.announce(landed.outcome);
+    showCaption(item.caption(landed.outcome));
     setState('result');
   }
 
@@ -107,9 +117,17 @@ export function startGame(options: GameOptions): Game {
   });
 
   place(rest);
+  showCaption(null);
+  document.body.dataset.item = item.name;
   document.body.dataset.tossCount = '0';
   setState('loading');
   options.loadEngine().then((loaded) => {
+    try {
+      loaded.prepare(item.body);
+    } catch (error) {
+      fail(error);
+      return;
+    }
     engine = loaded;
     setState('idle');
   }, fail);

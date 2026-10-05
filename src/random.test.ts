@@ -3,7 +3,15 @@ import { cryptoSource, pickWeighted, randomInt, randomUnit } from './random';
 import { seededSource } from './testing/seededSource';
 
 /** Chi-square critical values at p = 0.001 for n - 1 degrees of freedom. */
-const CHI_SQUARE_CRITICAL: Record<number, number> = { 2: 10.83, 6: 20.52, 20: 43.82 };
+const CHI_SQUARE_CRITICAL: Record<number, number> = {
+  2: 10.83,
+  4: 16.27,
+  6: 20.52,
+  8: 24.32,
+  10: 27.88,
+  12: 31.26,
+  20: 43.82,
+};
 
 function sequence(values: number[]) {
   let i = 0;
@@ -11,7 +19,7 @@ function sequence(values: number[]) {
 }
 
 describe('randomInt', () => {
-  it.each([2, 6, 20])('is uniform over [0, %i) by chi-square on 60k draws', (n) => {
+  it.each([2, 4, 6, 8, 10, 12, 20])('is uniform over [0, %i) by chi-square on 60k draws', (n) => {
     const source = seededSource(n * 7919);
     const samples = 60_000;
     const counts = new Array<number>(n).fill(0);

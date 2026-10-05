@@ -4,6 +4,7 @@ import { fromAxisAngle, IDENTITY, multiply, type Pose } from '../math/quat';
 import { frameCount, framePose } from '../physics/frames';
 import { initPhysics, simulateToss, type Simulation, type TossInput } from '../physics/simulate';
 import { seededSource } from '../testing/seededSource';
+import { wallOvershoot, wallStarts } from '../testing/wallStarts';
 import { upFace } from './faces';
 import {
   anchorTrajectory,
@@ -15,13 +16,13 @@ import {
   type TossPlan,
   type Trajectory,
 } from './planToss';
-import { PROFILES } from './profiles';
+import { COIN_PROFILES } from './profiles';
 
 let fallback: Trajectory;
 
 beforeAll(async () => {
   await initPhysics();
-  fallback = precomputeFallback(COIN_BODY, INITIAL_POSE, simulateToss);
+  fallback = precomputeFallback(COIN_BODY, simulateToss);
 });
 
 function lastPose(plan: Pick<TossPlan<CoinValue>, 'frames'>): Pose {
@@ -123,7 +124,7 @@ describe('planToss', () => {
       position: [-1.2, INITIAL_POSE.position[1], 2],
       quaternion: multiply(fromAxisAngle([0, 1, 0], 0.7), fromAxisAngle([1, 0, 0], Math.PI)),
     };
-    const anchored = anchorTrajectory(fallback, start);
+    const anchored = anchorTrajectory(fallback, start, COIN_BODY);
     const first = framePose(anchored.frames, 0);
     for (let k = 0; k < 3; k += 1) expect(first.position[k]).toBeCloseTo(start.position[k]!, 5);
     const rest = framePose(anchored.frames, frameCount(anchored.frames) - 1);
@@ -132,6 +133,18 @@ describe('planToss', () => {
       framePose(fallback.frames, frameCount(fallback.frames) - 1).position[1],
       5,
     );
+  });
+
+  it('lands the anchored fallback flat and inside the walls from a start leaning on a wall', () => {
+    const landing = fallback.contacts[0]!.frame;
+    for (const start of wallStarts(COIN_BODY, 16)) {
+      const anchored = anchorTrajectory(fallback, start, COIN_BODY);
+      const first = framePose(anchored.frames, 0);
+      for (let k = 0; k < 3; k += 1) expect(first.position[k]).toBeCloseTo(start.position[k]!, 5);
+      expect(wallOvershoot(anchored.frames, COIN_BODY, landing)).toBeLessThanOrEqual(1e-6);
+      const rest = framePose(anchored.frames, frameCount(anchored.frames) - 1);
+      expect(upFace(rest.quaternion, COIN_BODY.faces).tiltDeg).toBeLessThan(1);
+    }
   });
 
   it('uses only the reduced profile under reduced motion and flies lower and shorter', () => {
@@ -159,7 +172,7 @@ describe('planToss', () => {
   it('uses every profile without reduced motion', () => {
     const source = seededSource(32);
     const seen = new Set(Array.from({ length: 60 }, () => plan({ source }).profile));
-    expect([...seen].sort()).toEqual(PROFILES.map((p) => p.name).sort());
+    expect([...seen].sort()).toEqual(COIN_PROFILES.map((p) => p.name).sort());
     expect(seen.has('reduced')).toBe(false);
   });
 

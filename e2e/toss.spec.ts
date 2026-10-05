@@ -34,8 +34,11 @@ test('tosses on tap, ignores taps in flight, announces the result and tosses aga
   await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: 10_000 });
   await expect(result).toHaveText(/^(Heads|Tails)$/);
 
-  await page.keyboard.press('Space');
-  await expect(body(page)).toHaveAttribute('data-toss-count', '2');
+  // Space is ignored until the camera finishes its dolly toward the coin.
+  await expect(async () => {
+    await page.keyboard.press('Space');
+    await expect(body(page)).toHaveAttribute('data-toss-count', '2', { timeout: 500 });
+  }).toPass({ timeout: 10_000 });
   await expect(body(page)).toHaveAttribute('data-toss-state', 'flying');
   await expect(result).toHaveText('');
 

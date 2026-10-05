@@ -1,6 +1,7 @@
 import { fromAxisAngle, IDENTITY, type Pose, type Quat, type Vec3 } from '../math/quat';
+import { defineBody, type TossBody } from '../toss/body';
 import type { Face } from '../toss/faces';
-import type { TossBody } from '../toss/planToss';
+import { COIN_PROFILES, COIN_REDUCED_PROFILE } from '../toss/profiles';
 
 // Local frame: heads face +Y, tails face -Y, origin at the center of mass.
 // Octagon vertices sit at 22.5° + k·45° in the XZ plane, so a flat side faces +Z (the viewer)
@@ -65,13 +66,21 @@ export const COIN_SYMMETRIES: readonly Quat[] = [
   ...Array.from({ length: 7 }, (_, k) => fromAxisAngle([0, 1, 0], ((k + 1) * Math.PI) / 4)),
 ];
 
-export const COIN_BODY: TossBody<CoinValue> = {
+/** Heads up, a little toward the viewer from the zone center. */
+export const INITIAL_POSE: Pose = { position: [0, THICKNESS / 2, 1], quaternion: IDENTITY };
+
+export const COIN_BODY: TossBody<CoinValue> = defineBody({
   hull: hullPoints(),
   density: DENSITY,
   faces: COIN_FACES,
   symmetries: COIN_SYMMETRIES,
   clearance: Math.hypot(CIRCUMRADIUS, THICKNESS / 2) + 0.01,
-};
-
-/** Heads up, a little toward the viewer from the zone center. */
-export const INITIAL_POSE: Pose = { position: [0, THICKNESS / 2, 1], quaternion: IDENTITY };
+  initialPose: INITIAL_POSE,
+  launch: {
+    profiles: COIN_PROFILES,
+    reduced: COIN_REDUCED_PROFILE,
+    touchdown: { flat: THICKNESS / 2, edge: CIRCUMRADIUS },
+    fallback: { lift: 10.5, halfTurns: [7, 6, 8, 5, 9] },
+    wallInset: 0,
+  },
+});

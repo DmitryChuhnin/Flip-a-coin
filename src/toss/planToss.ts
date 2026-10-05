@@ -1,32 +1,35 @@
-import { conjugate, multiply, type Pose, type Quat, type Vec3 } from '../math/quat';
-import { durationS, FRAME_STRIDE, frameCount, framePose, STEP_S } from '../physics/frames';
-import { GRAVITY, type Contact, type Simulation, type TossInput } from '../physics/simulate';
-import { pickWeighted, randomInt, randomUnit, type Uint32Source } from '../random';
-import { remapRotation, upFace, type Face } from './faces';
+import { add, scale, sub } from '../math/polyhedron';
 import {
-  PROFILES,
-  REDUCED_MOTION_PROFILE,
-  sampleImpulse,
-  type Impulse,
-  type ProfileName,
-} from './profiles';
+  conjugate,
+  IDENTITY,
+  length3,
+  multiply,
+  rotate,
+  slerp,
+  type Pose,
+  type Quat,
+  type Vec3,
+} from '../math/quat';
+import {
+  durationS,
+  FRAME_STRIDE,
+  frameCount,
+  framePose,
+  GRAVITY,
+  STEP_S,
+  WALL_INNER,
+} from '../physics/frames';
+import type { Contact, Simulation, TossInput } from '../physics/simulate';
+import { pickWeighted, randomInt, randomUnit, type Uint32Source } from '../random';
+import { hullVectors, type TossBody } from './body';
+import { remapRotation, upFace } from './faces';
+import { sampleImpulse, type Impulse, type ProfileName } from './profiles';
 
 export const MAX_ATTEMPTS = 3;
-const PROFILE_WEIGHTS = PROFILES.map((profile) => profile.weight);
-/** A rest pose tilted more than this is the coin leaning on its edge, not a result. */
+/** A rest pose tilted more than this (a coin on its edge, a die on an edge or a wall) is no result. */
 export const MAX_REST_TILT_DEG = 10;
 /** Shortest stretch of flight the visual remap may be spread over. */
 export const MIN_BLEND_S = 0.2;
-
-export interface TossBody<V extends string> {
-  hull: Float32Array;
-  density: number;
-  faces: readonly Face<V>[];
-  /** Rotations mapping the hull onto itself, in the local frame. */
-  symmetries: readonly Quat[];
-  /** Body center height above which no orientation touches the table. */
-  clearance: number;
-}
 
 export interface BlendWindow {
   startS: number;
@@ -111,34 +114,71 @@ function finish<V extends string>(
   const window = findBlendWindow(frames, body.clearance);
   const longEnough = isLongEnough(window);
   const preferAxis = longEnough ? localSpinAxis(frames, window) : undefined;
-  const visualOffset = remapRotation(landed, desired, body.faces, body.symmetries, preferAxis);
+  const visualOffset = remapRotation(body.remaps, landed, desired, preferAxis);
   const isIdentity = Math.abs(visualOffset[3]) > 1 - 1e-9;
   if (!isIdentity && !longEnough) return null;
   return { visualOffset, blend: longEnough ? window : { startS: 0, endS: 0 } };
 }
 
+/** Rotation about world +Y closest to `q` (the twist part of a swing-twist split). */
+function yawOf(q: Quat): Quat {
+  const length = Math.hypot(q[1], q[3]);
+  return length < 1e-9 ? [0, 0, 0, 1] : [0, q[1] / length, 0, q[3] / length];
+}
+
+/** Sideways shift that keeps the given center positions `reach` away from the side walls. */
+function wallShift(positions: Vec3[], reach: number, inset: number): Vec3 {
+  const fit = (axis: 0 | 2, wall: number): number => {
+    const limit = wall - inset - reach;
+    const low = Math.min(...positions.map((p) => p[axis]));
+    const high = Math.max(...positions.map((p) => p[axis]));
+    if (high - low > 2 * limit) return -(high + low) / 2;
+    return Math.min(Math.max(0, -limit - low), limit - high);
+  };
+  return [fit(0, WALL_INNER.x), 0, fit(2, WALL_INNER.z)];
+}
+
 /**
- * Re-anchors a trajectory that started at rest elsewhere so it starts at `start`: shifts it on
- * the table and relabels the body frame. Both rest poses are flat, so the relabelling only turns
- * the outline within its own plane and keeps the flat rest height.
+ * Re-anchors a trajectory that started at rest elsewhere so it starts at `start`. The body frame
+ * is relabelled by a symmetry S that takes the start's up face to the recorded one, and the flight
+ * is turned about the vertical. Until the first landing the start's tilt is eased out and the body
+ * drifts sideways just enough to keep the roll after landing inside the walls.
  */
-export function anchorTrajectory(trajectory: Trajectory, start: Pose): Trajectory {
+export function anchorTrajectory<V extends string>(
+  trajectory: Trajectory,
+  start: Pose,
+  body: TossBody<V>,
+): Trajectory {
   const origin = framePose(trajectory.frames, 0);
-  const relabel = multiply(conjugate(origin.quaternion), start.quaternion);
+  const recordedUp = upFace(origin.quaternion, body.faces).index;
+  const startUp = upFace(start.quaternion, body.faces).index;
+  const relabel = body.remaps[recordedUp]![startUp]![0]!;
+  // turn · origin · relabel = start exactly; turn = tilt · yaw, tilt is the start's own small lean.
+  const turn = multiply(
+    start.quaternion,
+    multiply(conjugate(relabel), conjugate(origin.quaternion)),
+  );
+  const yaw = yawOf(turn);
+  const tilt = multiply(turn, conjugate(yaw));
+
+  const count = frameCount(trajectory.frames);
+  const landing = Math.max(1, Math.min(count - 1, trajectory.contacts[0]?.frame ?? count - 1));
+  const centers = Array.from({ length: count }, (_, i) => {
+    const offset = rotate(yaw, sub(framePose(trajectory.frames, i).position, origin.position));
+    return add(start.position, offset);
+  });
+  const reach = Math.max(...hullVectors(body.hull).map(length3));
+  const shift = wallShift(centers.slice(landing), reach, body.launch.wallInset);
+
   const frames = new Float32Array(trajectory.frames.length);
-  for (let i = 0; i < frameCount(frames); i += 1) {
-    const pose = framePose(trajectory.frames, i);
-    const q = multiply(pose.quaternion, relabel);
-    frames.set(
-      [
-        pose.position[0] - origin.position[0] + start.position[0],
-        pose.position[1] - origin.position[1] + start.position[1],
-        pose.position[2] - origin.position[2] + start.position[2],
-        ...q,
-      ],
-      i * FRAME_STRIDE,
+  centers.forEach((center, i) => {
+    const s = Math.min(1, i / landing);
+    const q = multiply(
+      slerp(tilt, IDENTITY, s),
+      multiply(yaw, multiply(framePose(trajectory.frames, i).quaternion, relabel)),
     );
-  }
+    frames.set([...add(center, scale(shift, s)), ...q], i * FRAME_STRIDE);
+  });
   return { frames, contacts: trajectory.contacts };
 }
 
@@ -147,12 +187,14 @@ export function planToss<V extends string>(options: PlanOptions<V>): TossPlan<V>
   const desired = randomInt(body.faces.length, source);
   const outcome = body.faces[desired]!.value;
   const unit = () => randomUnit(source);
+  const { launch } = body;
+  const weights = launch.profiles.map((profile) => profile.weight);
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     const profile = reducedMotion
-      ? REDUCED_MOTION_PROFILE
-      : PROFILES[pickWeighted(PROFILE_WEIGHTS, source)]!;
-    const impulse = sampleImpulse(profile, start, unit);
+      ? launch.reduced
+      : launch.profiles[pickWeighted(weights, source)]!;
+    const impulse = sampleImpulse(profile, start, unit, launch.touchdown);
     const sim = simulate(tossInput(body, start, impulse));
     if (!isFlatRest(sim, body)) continue;
     const remap = finish(sim, desired, body);
@@ -169,7 +211,7 @@ export function planToss<V extends string>(options: PlanOptions<V>): TossPlan<V>
     };
   }
 
-  const anchored = anchorTrajectory(options.fallback, start);
+  const anchored = anchorTrajectory(options.fallback, start, body);
   const remap = finish(anchored, desired, body);
   if (!remap) throw new Error('Fallback trajectory has no blend window');
   return {
@@ -178,27 +220,32 @@ export function planToss<V extends string>(options: PlanOptions<V>): TossPlan<V>
     contacts: anchored.contacts,
     ...remap,
     durationS: durationS(anchored.frames),
-    profile: 'normal',
+    profile: launch.profiles[0]!.name,
     attempts: MAX_ATTEMPTS,
     usedFallback: true,
   };
 }
 
 function tossInput<V extends string>(body: TossBody<V>, start: Pose, impulse: Impulse): TossInput {
-  return { hull: body.hull, density: body.density, start, ...impulse };
+  return {
+    hull: body.hull,
+    density: body.density,
+    start,
+    ...impulse,
+    wallInset: body.launch.wallInset,
+  };
 }
 
-/** Fixed straight-up toss, tried with a few spin rates until one rests flat. */
+/** Fixed straight-up toss from the body's initial pose, tried with a few spin rates until one rests flat. */
 export function precomputeFallback<V extends string>(
   body: TossBody<V>,
-  start: Pose,
   simulate: (input: TossInput) => Simulation,
 ): Trajectory {
-  const lift = 10.5;
-  for (const halfTurns of [7, 6, 8, 5, 9]) {
+  const { lift, halfTurns: rates } = body.launch.fallback;
+  for (const halfTurns of rates) {
     const flightS = (2 * lift) / GRAVITY;
     const sim = simulate(
-      tossInput(body, start, {
+      tossInput(body, body.initialPose, {
         linearVelocity: [0, lift, 0],
         angularVelocity: [(halfTurns * Math.PI) / flightS, 0, 0],
         angularDamping: 0.3,

@@ -5,6 +5,8 @@ const PORT = 4173;
 export default defineConfig({
   testDir: 'e2e',
   forbidOnly: !!process.env.CI,
+  // Software WebGL in parallel workers starves a CI runner and times out waits.
+  workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: `http://localhost:${PORT}/flip-a-coin/`,
