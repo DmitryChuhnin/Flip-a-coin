@@ -216,6 +216,19 @@ describe('planToss', () => {
     expect(seen.has('reduced')).toBe(false);
   });
 
+  it('tosses the spinner and the edge toss at least 0.5 lower than the normal toss', () => {
+    const only = (name: string) => ({
+      ...COIN_BODY,
+      launch: { ...COIN_BODY.launch, profiles: COIN_PROFILES.filter((p) => p.name === name) },
+    });
+    const source = seededSource(41);
+    const apexes = (name: string) =>
+      Array.from({ length: 20 }, () => apex(plan({ body: only(name), source }).frames));
+    const normal = Math.min(...apexes('normal'));
+    expect(Math.max(...apexes('spinner'))).toBeLessThan(normal - 0.5);
+    expect(Math.max(...apexes('edge'))).toBeLessThan(normal - 0.5);
+  });
+
   it('simulates the coin without a settle limit or damping after landing', () => {
     const inputs: TossInput[] = [];
     const recording = (input: TossInput): Simulation => {

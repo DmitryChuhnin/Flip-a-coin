@@ -78,18 +78,19 @@ export const COIN_PROFILES: readonly ProfileSpec[] = [
   {
     name: 'edge',
     weight: 20,
-    lift: [8.5, 10],
+    lift: [7.5, 8.5],
     verticalSpin: [0, 1],
-    // A fast flip carries straight over the rim on touchdown; a slow one leaves the coin on it.
-    flip: { halfTurns: [0.5, 1.5] },
+    // Just over half a turn lands rim first and rolls on it; a faster flip tips straight over.
+    flip: { halfTurns: [0.55] },
     roll: [0.8, 1.6],
     angularDamping: 0.3,
   },
   {
     name: 'spinner',
     weight: 10,
-    lift: [10.9, 11.1],
-    verticalSpin: [7.3, 7.6],
+    // A low toss whose flight lasts 2.5 axis wobbles at this spin, so the rim lands first.
+    lift: [8.4, 8.6],
+    verticalSpin: [7.2, 7.35],
     flip: { perVerticalSpin: [1.95, 2] },
     roll: [0, 0],
     angularDamping: 0,
