@@ -1,5 +1,9 @@
+import { createHash } from 'node:crypto';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Plugin } from 'vite';
 import { defineConfig } from 'vitest/config';
+import { CACHE_PREFIX, serviceWorkerSource } from './src/pwa/serviceWorker.ts';
 
 /**
  * rapier3d-compat inlines its wasm as base64, which gzips far worse than the binary. The
@@ -34,9 +38,57 @@ function rapierWasmAsset(): Plugin {
   };
 }
 
+/**
+ * Emits `sw.js` listing every built and public file. The cache name hashes the file names, the
+ * page and the public files, so any change to the build gives a new cache.
+ */
+function serviceWorker(): Plugin {
+  let publicDir = '';
+  return {
+    name: 'service-worker',
+    apply: 'build',
+    enforce: 'post',
+    configResolved(config) {
+      publicDir = config.publicDir;
+    },
+    generateBundle(_options, bundle) {
+      const page = bundle['index.html'];
+      if (page?.type !== 'asset') this.error('index.html is missing from the bundle');
+      const hashed = Object.keys(bundle)
+        .filter((name) => name !== 'index.html' && !name.endsWith('.map'))
+        .sort();
+      const publicFiles = readdirSync(publicDir, { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) => join(entry.parentPath, entry.name).slice(publicDir.length + 1))
+        .sort();
+      const hash = createHash('sha256').update(hashed.join('\n')).update(page.source);
+      for (const name of publicFiles) hash.update(name).update(readFileSync(join(publicDir, name)));
+      this.emitFile({
+        type: 'asset',
+        fileName: 'sw.js',
+        source: serviceWorkerSource({
+          cacheName: CACHE_PREFIX + hash.digest('hex').slice(0, 12),
+          hashed,
+          fresh: ['./', ...publicFiles],
+        }),
+      });
+    },
+  };
+}
+
 export default defineConfig({
   base: '/flip-a-coin/',
-  plugins: [rapierWasmAsset()],
+  plugins: [rapierWasmAsset(), serviceWorker()],
+  build: {
+    // three.js is one module of about 550 kB that the first frame needs; it gets its own chunk,
+    // which stays cached across releases that change only the game code.
+    chunkSizeWarningLimit: 600,
+    rolldownOptions: {
+      output: {
+        codeSplitting: { groups: [{ name: 'three', test: /node_modules[\\/]three[\\/]/ }] },
+      },
+    },
+  },
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],

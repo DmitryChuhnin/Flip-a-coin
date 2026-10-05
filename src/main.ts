@@ -142,6 +142,11 @@ function startScene(canvas: HTMLCanvasElement, announcer: HTMLElement, caption: 
   }
 }
 
+// Offline play after the first visit; where registration fails the game still runs online.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {});
+}
+
 const canvas = document.querySelector<HTMLCanvasElement>('#scene');
 const announcer = document.querySelector<HTMLElement>('#toss-result');
 const caption = document.querySelector<HTMLElement>('#roll-number');

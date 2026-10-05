@@ -135,6 +135,31 @@ Baloo 2 at weights 700 and 800, Latin subset only, comes from `@fontsource/baloo
 served with the game. A font from a font CDN adds a third-party request on every visit and is
 missing offline. Cyrillic text falls back to the next font in the stack.
 
+## The game works offline through its own service worker
+
+The build emits `sw.js` (`serviceWorker` plugin in `vite.config.ts`, source in
+`src/pwa/serviceWorker.ts`) that lists every built and public file. Install precaches all of
+them, then requests in scope are answered from the cache first, and every page load gets the
+cached page. A page whose worker failed to register still runs online.
+
+- A new worker does not call `skipWaiting`: it takes over once every tab of the old version is
+  closed. An open old page still loads the physics chunk and the wasm lazily, and with an early
+  switch neither is in the new cache nor, after a deploy, on the server.
+- Content-hashed files are copied from the previous cache, so an update downloads only what
+  changed. The page, the manifest and the icons keep their names across builds and are always
+  downloaded again, bypassing the HTTP cache; a copied page would point at the old build.
+- The cache name hashes the file list, the page and the public files. Activation deletes the
+  game's older caches and no others.
+- `vite-plugin-pwa` (Workbox) would cover the same with a large dependency tree tied to Vite
+  versions; precache, cleanup and the page fallback are about 50 lines here.
+
+## three.js is a chunk of its own
+
+three.js is about 550 kB minified, one module the first frame needs, so splitting it further
+gains nothing and the chunk size warning limit is 600 kB. It lives in its own chunk, which keeps
+its name across releases that change only the game code and is then copied by the service
+worker instead of downloaded.
+
 ## Sounds are synthesized, not recorded
 
 The coin's ring and clink are a few decaying sine partials, a die's knock is a short band-passed

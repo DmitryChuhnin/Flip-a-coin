@@ -4,7 +4,8 @@ A casual mobile-first browser game: a 3D coin lies on a table, and a tap tosses 
 three.js, TypeScript and Vite. The production build is served from `/flip-a-coin/`.
 
 The tabs at the top switch between the coin and the dice; the tray picks d4 to d20. The choice
-and the sound switch are kept in `localStorage`.
+and the sound switch are kept in `localStorage`. After the first visit the game works offline and
+can be added to the home screen.
 
 ## Requirements
 
@@ -35,6 +36,8 @@ preview server).
 - `src/audio/sound.ts`: synthesized launch, hit and rest sounds, audio unlock, vibration. The
   audio state is `data-audio` on `<body>`. `src/audio/gestures.ts`: the events that unlock audio.
 - `src/strings.ts`: interface text, except the WebGL fallback message in `index.html`.
+- `src/pwa/serviceWorker.ts`: source of `sw.js`, which the build emits with the list of files to
+  precache. `public/`: the web app manifest and icons.
 - `src/scene/createScene.ts`: renderer, camera, resize handling.
 - `src/scene/studio.ts`: the lilac studio backdrop, lights and the environment map.
 - `src/scene/contactShadow.ts`: the soft spot under the body that stands in for a shadow map.
