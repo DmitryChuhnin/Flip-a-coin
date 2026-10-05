@@ -8,15 +8,22 @@ import {
 } from 'three';
 import { cross, dot3, type Vec3 } from '../math/quat';
 import { centroid, sub } from '../math/polyhedron';
-import { UNDERLINE, type DieFaceArt, type DieModel } from './dieSpec';
+import { UNDERLINE, type DieFaceArt, type DieKind, type DieModel } from './dieSpec';
 
-const BODY_COLOR = 0xe6e1d6;
-const BODY_CSS = '#e6e1d6';
-const INK_CSS = '#26282c';
-/** Texture density; at 128 px per cell the large d4 faces blurred on a phone after the dolly. */
+/** Pastel body per die, all printed with the same dark ink. */
+export const DIE_COLORS: Record<DieKind, string> = {
+  d4: '#ff8a6b',
+  d6: '#b9a6ff',
+  d8: '#7fd6c2',
+  d10: '#ffcf6b',
+  d12: '#8fb8ff',
+  d20: '#ff9fc6',
+};
+const INK_CSS = '#2b2350';
+/** Texture density; at 128 px per cell the large d4 faces blurred on a phone in the close-up. */
 const PX_PER_UNIT = 220;
 const MIN_CELL_PX = 128;
-const ROUGHNESS = 0.75;
+const ROUGHNESS = 0.45;
 
 export interface AtlasLayout {
   columns: number;
@@ -88,7 +95,7 @@ function paintAtlas(die: DieModel): HTMLCanvasElement {
   canvas.height = layout.rows * cellPx;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2D canvas is not available for the die numbers');
-  ctx.fillStyle = BODY_CSS;
+  ctx.fillStyle = DIE_COLORS[die.kind];
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = INK_CSS;
   ctx.textAlign = 'center';
@@ -131,9 +138,7 @@ export function createDieMesh(die: DieModel): Mesh {
   texture.anisotropy = 4;
   const mesh = new Mesh(createDieGeometry(die), [
     new MeshStandardMaterial({ map: texture, roughness: ROUGHNESS, metalness: 0 }),
-    new MeshStandardMaterial({ color: BODY_COLOR, roughness: ROUGHNESS, metalness: 0 }),
+    new MeshStandardMaterial({ color: DIE_COLORS[die.kind], roughness: ROUGHNESS, metalness: 0 }),
   ]);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
   return mesh;
 }

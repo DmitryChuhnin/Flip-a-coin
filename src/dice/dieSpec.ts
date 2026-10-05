@@ -77,7 +77,7 @@ interface DieShape {
 
 const PHI = (1 + Math.sqrt(5)) / 2;
 const DENSITY = 1;
-/** A die is up to 1.5 units tall; this keeps one leaning on a side wall inside the frame. */
+/** Dice keep this much further from the side walls than the coin. */
 const WALL_INSET = 0.15;
 /** Where a die rests before the first toss, as the coin does. */
 const START: Vec3 = [0, 0, 1];

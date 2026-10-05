@@ -1,9 +1,20 @@
 import type { Object3D } from 'three';
 import type { Item } from './items';
 import type { Pose } from './math/quat';
-import type { Vec3 } from './scene/camera';
+import type { ContactShadow } from './scene/contactShadow';
 import type { SceneHandle } from './scene/createScene';
-import { DOLLY_AT_REST, dollyAmount, isDollyMoving, retarget } from './scene/dolly';
+import {
+  cameraAt,
+  closeUpView,
+  flightCorners,
+  flightView,
+  holdShot,
+  isShotMoving,
+  LAUNCH_SHOT_S,
+  SETTLE_SHOT_S,
+  type Shot,
+} from './scene/shots';
+import { bodyReach, hullVectors } from './toss/body';
 import type { TossEngine } from './toss/engine';
 import type { TossPlan } from './toss/planToss';
 import { FrameClock, visualPose } from './toss/playback';
@@ -17,6 +28,8 @@ export interface GameOptions {
   item: Item;
   /** Drawn object; its pose is set from the toss plan. */
   model: Object3D;
+  /** Spot under the model that shows its height above the table. */
+  shadow: ContactShadow;
   /** Polite live region that announces the result. */
   announcer: HTMLElement;
   /** Large result text above the table, hidden while the item has none to show. */
@@ -31,7 +44,7 @@ export interface Game {
 }
 
 export function startGame(options: GameOptions): Game {
-  const { canvas, scene, item, model, announcer, caption, reducedMotion } = options;
+  const { canvas, scene, item, model, shadow, announcer, caption, reducedMotion } = options;
   const clock = new FrameClock();
   let state: TossState = 'loading';
   let engine: TossEngine | null = null;
@@ -39,8 +52,9 @@ export function startGame(options: GameOptions): Game {
   let flightS = 0;
   let nowS = 0;
   let rest: Pose = item.body.initialPose;
-  let dolly = DOLLY_AT_REST;
-  let dollyTarget: Vec3 = rest.position;
+  const hull = hullVectors(item.body.hull);
+  const reach = bodyReach(item.body.hull);
+  let shot: Shot = holdShot(closeUpView(rest.position, reach));
   let tossCount = 0;
 
   function setState(next: TossState): void {
@@ -51,6 +65,8 @@ export function startGame(options: GameOptions): Game {
   function place(pose: Pose): void {
     model.position.set(...pose.position);
     model.quaternion.set(...pose.quaternion);
+    const [x, y, z] = pose.position;
+    shadow.follow(x, z, y - item.body.launch.touchdown.flat);
   }
 
   function fail(error: unknown): void {
@@ -65,7 +81,7 @@ export function startGame(options: GameOptions): Game {
 
   function toss(): void {
     if (!engine || (state !== 'idle' && state !== 'result')) return;
-    if (isDollyMoving(dolly, nowS, reducedMotion())) return;
+    if (isShotMoving(shot, nowS, reducedMotion())) return;
     try {
       plan = engine.plan(item.body, rest, reducedMotion());
     } catch (error) {
@@ -77,15 +93,24 @@ export function startGame(options: GameOptions): Game {
     document.body.dataset.tossCount = String(tossCount);
     announcer.textContent = '';
     showCaption(null);
-    dolly = retarget(dolly, 0, nowS, reducedMotion());
+    shot = {
+      from: closeUpView(rest.position, reach),
+      to: flightView(flightCorners(plan, hull)),
+      startS: nowS,
+      durationS: LAUNCH_SHOT_S,
+    };
     setState('flying');
   }
 
   function land(landed: TossPlan<string>): void {
     rest = visualPose(landed, landed.durationS);
     place(rest);
-    dollyTarget = rest.position;
-    dolly = retarget(dolly, 1, nowS, reducedMotion());
+    shot = {
+      from: shot.to,
+      to: closeUpView(rest.position, reach),
+      startS: nowS,
+      durationS: SETTLE_SHOT_S,
+    };
     announcer.textContent = item.announce(landed.outcome);
     showCaption(item.caption(landed.outcome));
     setState('result');
@@ -102,7 +127,7 @@ export function startGame(options: GameOptions): Game {
         place(visualPose(plan, flightS));
       }
     }
-    scene.setDolly(dollyTarget, dollyAmount(dolly, nowS, reducedMotion()));
+    scene.setCamera(cameraAt(shot, nowS, scene.aspect(), reducedMotion()));
   });
 
   canvas.addEventListener('pointerdown', (event) => {

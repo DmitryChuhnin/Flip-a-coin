@@ -31,6 +31,11 @@ export function hullVectors(hull: Float32Array): Vec3[] {
   ]);
 }
 
+/** Distance from the center of mass to the farthest hull point. */
+export function bodyReach(hull: Float32Array): number {
+  return Math.max(...hullVectors(hull).map(length3));
+}
+
 function isUnit(v: readonly number[]): boolean {
   return v.every(Number.isFinite) && Math.abs(Math.hypot(...v) - 1) <= UNIT_TOLERANCE;
 }
