@@ -30,8 +30,7 @@ export const FLIGHT_MARGIN = 0.08;
 export const wideView: View = computeCameraParams;
 
 export function closeUpView(target: Vec3, reach: number): View {
-  const params = closeUpParams(target, reach);
-  return () => params;
+  return (aspect) => closeUpParams(target, reach, aspect);
 }
 
 /** Corners of the box around every hull point of the drawn body over the whole flight. */

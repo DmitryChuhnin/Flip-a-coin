@@ -1,6 +1,13 @@
 import { PerspectiveCamera, Vector3 } from 'three';
 import { describe, expect, it } from 'vitest';
-import { computeCameraParams, DEFAULT_ASPECT, flightBox, type CameraParams } from './camera';
+import {
+  closeUpParams,
+  computeCameraParams,
+  DEFAULT_ASPECT,
+  flightBox,
+  type CameraParams,
+  type Vec3,
+} from './camera';
 
 function buildCamera(params: CameraParams, aspect: number): PerspectiveCamera {
   const camera = new PerspectiveCamera(params.fov, aspect, 0.1, 1000);
@@ -76,4 +83,29 @@ describe('computeCameraParams', () => {
       expect([params.fov, ...params.position, ...params.lookAt].every(Number.isFinite)).toBe(true);
     },
   );
+});
+
+describe('closeUpParams', () => {
+  const TARGET: Vec3 = [1, 0.1, -0.5];
+  const distance = (p: CameraParams) => Math.hypot(...p.position.map((v, k) => v - p.lookAt[k]!));
+
+  it('keeps 11 reach from the look point on a portrait phone and wider screens', () => {
+    for (const aspect of [9 / 19.5, 1, 16 / 9, 10]) {
+      expect(distance(closeUpParams(TARGET, 2, aspect))).toBeCloseTo(22, 9);
+    }
+  });
+
+  it('backs off on a narrow screen so the body fits the width', () => {
+    const narrow = closeUpParams(TARGET, 1, 0.1);
+    const camera = buildCamera(narrow, 0.1);
+    const ends = [-1, 1].map((dx) => new Vector3(TARGET[0] + dx, TARGET[1], TARGET[2]));
+    for (const p of ends) expect(Math.abs(p.project(camera).x)).toBeLessThan(1);
+    expect(distance(narrow)).toBeGreaterThan(11);
+  });
+
+  it('falls back to the default aspect for a degenerate one', () => {
+    for (const aspect of [Number.NaN, 0, -1]) {
+      expect(closeUpParams(TARGET, 1, aspect)).toEqual(closeUpParams(TARGET, 1, DEFAULT_ASPECT));
+    }
+  });
 });

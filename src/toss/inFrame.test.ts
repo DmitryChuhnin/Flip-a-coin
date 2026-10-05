@@ -2,7 +2,7 @@ import { PerspectiveCamera, Vector3 } from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { COIN_BODY } from '../coin/coinSpec';
 import { createDie, DIE_KINDS } from '../dice/dieSpec';
-import { length3, multiply, rotate, type Pose } from '../math/quat';
+import { multiply, rotate, type Pose } from '../math/quat';
 import { frameCount, framePose, GRAVITY, STEP_S } from '../physics/frames';
 import { initPhysics, simulateToss } from '../physics/simulate';
 import { computeCameraParams, FLIGHT_CEILING, type CameraParams, type Vec3 } from '../scene/camera';
@@ -16,15 +16,17 @@ import {
   type Shot,
 } from '../scene/shots';
 import { seededSource } from '../testing/seededSource';
-import { hullVectors, type TossBody } from './body';
+import { bodyReach, hullVectors, type TossBody } from './body';
 import { planToss, precomputeFallback, type TossPlan } from './planToss';
 import { visualPose } from './playback';
 
 const ASPECTS = {
+  'narrow 1:10': 1 / 10,
   'Pixel 7 portrait': 412 / 915,
   'portrait 9:16': 9 / 16,
   'square 1:1': 1,
   'landscape 16:9': 16 / 9,
+  'wide 10:1': 10,
 };
 
 const BODIES: Record<string, TossBody<string>> = {
@@ -81,7 +83,7 @@ describe('toss framing', () => {
     it(`keeps the ${name} under the flight ceiling at the highest launch`, () => {
       const { profiles, reduced, fallback, touchdown } = body.launch;
       const lift = Math.max(fallback.lift, ...[...profiles, reduced].map((p) => p.lift[1]));
-      const reach = Math.max(...hullVectors(body.hull).map(length3));
+      const reach = bodyReach(body.hull);
       expect(touchdown.flat + (lift * lift) / (2 * GRAVITY) + reach).toBeLessThan(FLIGHT_CEILING);
     });
   }
@@ -104,7 +106,7 @@ describe('toss framing', () => {
 
       it(`keeps the whole ${name} in the moving camera during 100 tosses on ${screen}`, () => {
         const hull = hullVectors(body.hull);
-        const reach = Math.max(...hull.map(length3));
+        const reach = bodyReach(body.hull);
         let worst = 0;
         for (const { start, plan, reducedMotion } of plans[name]!) {
           if (reducedMotion) continue;

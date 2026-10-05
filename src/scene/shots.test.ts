@@ -43,7 +43,7 @@ describe('easeOutCubic', () => {
 });
 
 describe('blendViews', () => {
-  const a = closeUpParams(COIN, 1);
+  const a = closeUpParams(COIN, 1, PORTRAIT);
   const b = computeCameraParams(PORTRAIT);
 
   it('returns the first view at 0 and the second at 1', () => {
@@ -65,9 +65,9 @@ describe('blendViews', () => {
 
 describe('cameraAt', () => {
   it('starts at the first view, eases and ends at the second', () => {
-    expect(cameraAt(launch, 10, PORTRAIT, false)).toEqual(closeUpParams(COIN, 1));
+    expect(cameraAt(launch, 10, PORTRAIT, false)).toEqual(closeUpParams(COIN, 1, PORTRAIT));
     const mid = cameraAt(launch, 10.2, PORTRAIT, false);
-    expect(mid.position[2]).toBeGreaterThan(closeUpParams(COIN, 1).position[2]);
+    expect(mid.position[2]).toBeGreaterThan(closeUpParams(COIN, 1, PORTRAIT).position[2]);
     expect(cameraAt(launch, 10.4, PORTRAIT, false)).toEqual(computeCameraParams(PORTRAIT));
     expect(cameraAt(launch, 99, PORTRAIT, false)).toEqual(computeCameraParams(PORTRAIT));
   });

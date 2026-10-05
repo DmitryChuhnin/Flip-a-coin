@@ -31,10 +31,14 @@ const DEG = Math.PI / 180;
 
 /**
  * Close-up of a resting body, per unit of its reach: camera distance to the look point, and the
- * look point above and behind the body. Taken from the scene stand, where the coin sits in the
- * lower third of a portrait screen and fills about half its width.
+ * look point above and behind the body. On a portrait phone the coin sits in the lower third and
+ * fills about half the width; on narrower screens the camera backs off to `maxWidth` of it.
  */
-const CLOSE_UP = { distance: 11, lookUp: 1.03, lookBack: 1.28 } as const;
+const CLOSE_UP = { distance: 11, lookUp: 1.03, lookBack: 1.28, maxWidth: 0.7 } as const;
+
+function safeAspect(aspect: number): number {
+  return Number.isFinite(aspect) && aspect > 0 ? aspect : DEFAULT_ASPECT;
+}
 
 /** Corners of the box every flight stays in: the walls plus the margin, up to the ceiling. */
 export function flightBox(): Vec3[] {
@@ -56,10 +60,9 @@ export function flightBox(): Vec3[] {
  * interface.
  */
 export function fitView(points: readonly Vec3[], aspect: number, margin = 0): CameraParams {
-  const safeAspect = Number.isFinite(aspect) && aspect > 0 ? aspect : DEFAULT_ASPECT;
   const tilt = TILT_DEG * DEG;
   const tanV = Math.tan((FOV_DEG * DEG) / 2) * (1 - margin);
-  const tanH = tanV * safeAspect;
+  const tanH = tanV * safeAspect(aspect);
 
   // Camera at a·up + b·forward; a point's depth is forward·p − b, its height in view up·p − a.
   const sin = Math.sin(tilt);
@@ -103,14 +106,15 @@ export function computeCameraParams(aspect: number): CameraParams {
 }
 
 /** Camera framing a body of `reach` resting at `target`, at the same tilt and field of view. */
-export function closeUpParams(target: Vec3, reach: number): CameraParams {
+export function closeUpParams(target: Vec3, reach: number, aspect: number): CameraParams {
   const tilt = TILT_DEG * DEG;
+  const tanH = Math.tan((FOV_DEG * DEG) / 2) * safeAspect(aspect);
   const look: Vec3 = [
     target[0],
     target[1] + CLOSE_UP.lookUp * reach,
     target[2] - CLOSE_UP.lookBack * reach,
   ];
-  const d = CLOSE_UP.distance * reach;
+  const d = reach * Math.max(CLOSE_UP.distance, 1 / (CLOSE_UP.maxWidth * tanH));
   return {
     fov: FOV_DEG,
     position: [look[0], look[1] + d * Math.sin(tilt), look[2] + d * Math.cos(tilt)],
