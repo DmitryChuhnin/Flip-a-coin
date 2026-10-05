@@ -135,6 +135,32 @@ Baloo 2 at weights 700 and 800, Latin subset only, comes from `@fontsource/baloo
 served with the game. A font from a font CDN adds a third-party request on every visit and is
 missing offline. Cyrillic text falls back to the next font in the stack.
 
+## Sounds are synthesized, not recorded
+
+The coin's ring and clink are a few decaying sine partials, a die's knock is a short band-passed
+noise burst over a low thump (`src/audio/sound.ts`). Each table hit recorded in the toss plays at a
+volume set by its approach speed, with the pitch varied by a few percent so a bounce series does
+not repeat one sample. Recorded samples would need a file per sound and size, a licence kept next to
+each, and a download before the first toss.
+
+Browsers start audio only inside a user gesture, so the first tap both unlocks audio and tosses.
+The unlock listeners (`src/audio/gestures.ts`) run in the capture phase, before the tap reaches the
+game, on the press and on the release: Chromium on a touch screen grants the activation only on
+`pointerup`, Safari on `touchend` and `click`. The launch sound of a toss that started while audio
+was still locked waits for the context to run and is dropped at the toss's first table hit, at its
+rest or at the next launch, so it never plays over a later toss. A context the browser closed is
+replaced on the next gesture.
+
+The rest sound plays when the body stops moving visibly (`stillSinceS` in
+`src/physics/frames.ts`), not at the end of the recording: the engine keeps recording while it
+confirms rest, 0.2 to 0.5 s in practice.
+
+A browser without Web Audio, or one that refuses to start it, leaves the game silent with no error
+(`data-audio` on `<body>` is `unavailable` or `locked`). On iOS the ring/silent switch mutes Web
+Audio; the game keeps it that way, as sounds of a game, not media. Vibration is one short pulse on
+the first hit of a toss; Safari on iOS has no `navigator.vibrate`. The sound switch turns off both,
+and mutes sounds already playing.
+
 ## Prerecorded animations are not used
 
 A fixed set of baked flights repeats visibly after a few tosses, and every flight would have to

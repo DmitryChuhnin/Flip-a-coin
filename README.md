@@ -32,6 +32,8 @@ preview server).
 - `src/items.ts`: the tossable items (coin and dice) and their announcements.
 - `src/settings.ts`: saved settings (item tab, die, sound, first toss done), read field by field.
 - `src/ui/controls.ts`: item tabs, dice tray, sound button and the first-toss hint.
+- `src/audio/sound.ts`: synthesized launch, hit and rest sounds, audio unlock, vibration. The
+  audio state is `data-audio` on `<body>`. `src/audio/gestures.ts`: the events that unlock audio.
 - `src/strings.ts`: interface text, except the WebGL fallback message in `index.html`.
 - `src/scene/createScene.ts`: renderer, camera, resize handling.
 - `src/scene/studio.ts`: the lilac studio backdrop, lights and the environment map.

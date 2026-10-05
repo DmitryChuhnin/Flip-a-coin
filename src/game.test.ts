@@ -75,6 +75,8 @@ interface Harness {
   scene: { addItem: ReturnType<typeof vi.fn>; removeItem: ReturnType<typeof vi.fn> };
   /** Runs `seconds` of animation frames. */
   run(seconds: number): void;
+  /** Runs one frame `ms` after the previous one. */
+  step(ms: number): void;
   tap(): void;
   key(init: KeyboardEventInit, target?: EventTarget): void;
   state(): string | undefined;
@@ -135,6 +137,10 @@ function harness(overrides: Partial<GameOptions> = {}): Harness {
         nowMs += FRAME_MS;
         frame(nowMs);
       }
+    },
+    step(ms) {
+      nowMs += ms;
+      frame(nowMs);
     },
     tap() {
       canvas.dispatchEvent(new PointerEvent('pointerdown', { isPrimary: true, button: 0 }));
@@ -241,6 +247,80 @@ describe('startGame', () => {
     game.tap();
     expect(game.tosses()).toBe('2');
     expect(game.options.caption.hidden).toBe(true);
+  });
+
+  it('reports each recorded table hit once, in order, and the rest when the body stops', async () => {
+    const impacts: [string, number][] = [];
+    const rests: string[] = [];
+    const game = harness({
+      initialItem: 'd6',
+      onImpact: (item, strength) => impacts.push([item, strength]),
+      onRest: (item) => rests.push(item),
+    });
+    // The hop ends at 1 s; the recording then holds still for 0.5 s before it ends.
+    const moving = hop(1);
+    const frames = new Float32Array(moving.frames.length + 30 * FRAME_STRIDE);
+    frames.set(moving.frames);
+    const last = moving.frames.subarray(moving.frames.length - FRAME_STRIDE);
+    for (let i = 0; i < 30; i += 1) frames.set(last, moving.frames.length + i * FRAME_STRIDE);
+    game.engine.plan.mockImplementation(() => ({
+      ...moving,
+      frames,
+      durationS: moving.durationS + 0.5,
+      contacts: [
+        { frame: 20, strength: 9 },
+        { frame: 27, strength: 2 },
+        { frame: 45, strength: 0.5 },
+      ],
+    }));
+    await flush();
+    game.tap();
+    game.run(0.25);
+    expect(impacts).toEqual([]);
+    game.run(0.1);
+    expect(impacts).toEqual([['d6', 9]]);
+    game.run(0.55);
+    expect(impacts).toEqual([
+      ['d6', 9],
+      ['d6', 2],
+      ['d6', 0.5],
+    ]);
+    expect(rests).toEqual([]);
+    game.run(0.15);
+    expect(rests).toEqual(['d6']);
+    expect(game.state()).toBe('flying');
+    game.run(1);
+    expect(game.state()).toBe('result');
+    expect(impacts).toHaveLength(3);
+    expect(rests).toHaveLength(1);
+
+    game.run(SETTLE_SHOT_S);
+    game.tap();
+    game.run(2.5);
+    expect(impacts).toHaveLength(6);
+    expect(rests).toEqual(['d6', 'd6']);
+  });
+
+  it('reports a hit on the last frame and several hits within one long frame', async () => {
+    const impacts: number[] = [];
+    const game = harness({ onImpact: (_item, strength) => impacts.push(strength) });
+    game.engine.plan.mockImplementation(() => ({
+      ...hop(1),
+      contacts: [
+        { frame: 8, strength: 1 },
+        { frame: 9, strength: 2 },
+        { frame: 10, strength: 3 },
+        { frame: 60, strength: 4 },
+      ],
+    }));
+    await flush();
+    game.tap();
+    game.run(0.1);
+    expect(impacts).toEqual([]);
+    game.step(100);
+    expect(impacts).toEqual([1, 2, 3]);
+    game.run(2);
+    expect(impacts).toEqual([1, 2, 3, 4]);
   });
 
   it('resumes a flight where it stopped after the tab was hidden', async () => {

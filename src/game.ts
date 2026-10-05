@@ -1,6 +1,7 @@
 import type { Object3D } from 'three';
 import type { Item, ItemName } from './items';
 import type { Pose, Vec3 } from './math/quat';
+import { STEP_S, stillSinceS } from './physics/frames';
 import type { ContactShadow } from './scene/contactShadow';
 import type { SceneHandle } from './scene/createScene';
 import {
@@ -51,7 +52,11 @@ export interface GameOptions {
   reducedMotion: () => boolean;
   onStateChange?: (state: TossState) => void;
   /** Runs when a toss starts. */
-  onToss?: () => void;
+  onToss?: (item: ItemName) => void;
+  /** Runs when playback passes a recorded table hit; `strength` is its approach speed. */
+  onImpact?: (item: ItemName, strength: number) => void;
+  /** Runs when playback reaches the moment the body stops moving, before the camera settles. */
+  onRest?: (item: ItemName) => void;
 }
 
 export interface Game {
@@ -77,6 +82,9 @@ export function startGame(options: GameOptions): Game {
   let current = options.loadItem(options.initialItem);
   let plan: TossPlan<string> | null = null;
   let flightS = 0;
+  /** Flight time the body stops moving at; the recording runs on while the engine confirms rest. */
+  let restS = 0;
+  let rested = false;
   let nowS = 0;
   let rest: Pose = current.item.body.initialPose;
   let shot: Shot = holdShot(closeUpView(rest.position, current.reach));
@@ -133,6 +141,8 @@ export function startGame(options: GameOptions): Game {
       return;
     }
     flightS = 0;
+    restS = stillSinceS(plan.frames);
+    rested = false;
     tossCount += 1;
     document.body.dataset.tossCount = String(tossCount);
     announcer.textContent = '';
@@ -144,7 +154,7 @@ export function startGame(options: GameOptions): Game {
       durationS: LAUNCH_SHOT_S,
     };
     setState('flying');
-    options.onToss?.();
+    options.onToss?.(current.item.name);
   }
 
   function land(landed: TossPlan<string>): void {
@@ -217,7 +227,16 @@ export function startGame(options: GameOptions): Game {
     nowS += dt;
     if (swap) stepSwap(swap);
     if (state === 'flying' && plan) {
+      const fromS = flightS;
       flightS = Math.min(flightS + dt, plan.durationS);
+      for (const contact of plan.contacts) {
+        const atS = contact.frame * STEP_S;
+        if (atS > fromS && atS <= flightS) options.onImpact?.(current.item.name, contact.strength);
+      }
+      if (!rested && flightS >= restS) {
+        rested = true;
+        options.onRest?.(current.item.name);
+      }
       if (flightS >= plan.durationS) {
         land(plan);
       } else {

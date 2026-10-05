@@ -21,6 +21,8 @@ async function tossOnce(page: Page, count: string): Promise<void> {
 }
 
 test('switches between the coin and a die and remembers the choice', async ({ page }) => {
+  // Three page loads and a roll: about 30 s on a CI runner with software WebGL.
+  test.setTimeout(60_000);
   const errors = collectErrors(page);
   await page.goto('./');
   await expect(body(page)).toHaveAttribute('data-toss-state', 'idle', { timeout: 15_000 });
