@@ -38,7 +38,7 @@ preview server).
   audio state is `data-audio` on `<body>`. `src/audio/gestures.ts`: the events that unlock audio.
 - `src/strings.ts`: interface text in English and Russian, and the language choice.
 - `src/pwa/serviceWorker.ts`: source of `sw.js`, which the build emits with the list of files to
-  precache. `public/`: the web app manifest and icons.
+  precache. `public/`: the web app manifests (English and Russian) and icons.
 - `src/scene/createScene.ts`: renderer, camera, resize handling.
 - `src/scene/studio.ts`: the lilac studio backdrop, lights and the environment map.
 - `src/scene/contactShadow.ts`: the soft spot under the body that stands in for a shadow map.

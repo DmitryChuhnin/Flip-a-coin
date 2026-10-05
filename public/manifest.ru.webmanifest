@@ -1,9 +1,9 @@
 {
   "id": "./",
-  "lang": "en",
-  "name": "Flip a Coin",
-  "short_name": "Flip a Coin",
-  "description": "Toss a coin or roll a die.",
+  "lang": "ru",
+  "name": "Подбрось монетку",
+  "short_name": "Монетка",
+  "description": "Подбрось монетку или брось кость.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

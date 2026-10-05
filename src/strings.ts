@@ -4,6 +4,8 @@ export type Language = 'en' | 'ru';
 
 export interface Strings {
   title: string;
+  /** Name under the home screen icon on iOS; Android takes it from the manifest. */
+  shortName: string;
   coin: Record<CoinValue, string>;
   rolled: (value: string) => string;
   tabs: { label: string; coin: string; dice: string };
@@ -18,6 +20,7 @@ export interface Strings {
 export const DICTIONARY: Record<Language, Strings> = {
   en: {
     title: 'Flip a Coin',
+    shortName: 'Flip a Coin',
     coin: { heads: 'Heads', tails: 'Tails' },
     rolled: (value) => `Rolled ${value}`,
     tabs: { label: 'Item', coin: 'Coin', dice: 'Dice' },
@@ -30,6 +33,7 @@ export const DICTIONARY: Record<Language, Strings> = {
   },
   ru: {
     title: 'Подбрось монетку',
+    shortName: 'Монетка',
     coin: { heads: 'Орёл', tails: 'Решка' },
     rolled: (value) => `Выпало ${value}`,
     tabs: { label: 'Предмет', coin: 'Монетка', dice: 'Кость' },

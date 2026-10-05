@@ -142,7 +142,8 @@ only the glyphs Baloo 2 lacks. The service worker precaches it for every player,
 Russian when `navigator.languages[0]` is `ru` or `ru-*`, English for everything else
 (`src/strings.ts`). A Russian further down the list does not count: the first entry is what the
 reader picked for the browser itself. There is no language switch; the sound switch is the only
-setting. Unit tests pin the language to English (`src/testing/englishBrowser.ts`) because Node
+setting. A Russian page points its manifest link at `manifest.ru.webmanifest` and sets the iOS
+home screen title, so the installed app is named in Russian too; both manifests share one `id`. Unit tests pin the language to English (`src/testing/englishBrowser.ts`) because Node
 reports the machine's locale.
 
 ## The game works offline through its own service worker

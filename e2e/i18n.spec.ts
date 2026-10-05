@@ -35,6 +35,43 @@ test.describe('in a Russian browser', () => {
     await expect(page.locator('#toss-result')).toHaveText(/^(Орёл|Решка)$/);
     expect(errors).toEqual([]);
   });
+
+  test('names the installed app in Russian', async ({ page, request }) => {
+    await page.goto('./');
+    await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute(
+      'content',
+      'Монетка',
+    );
+    const href = await page.locator('link[rel="manifest"]').getAttribute('href');
+    const manifest = await (await request.get(new URL(href!, page.url()).href)).json();
+    expect(manifest).toMatchObject({ lang: 'ru', short_name: 'Монетка', id: './' });
+  });
+
+  test('explains a missing WebGL in Russian', async ({ page }) => {
+    await page.addInitScript(() => {
+      const original = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (
+        this: HTMLCanvasElement,
+        type: string,
+        ...rest: unknown[]
+      ) {
+        if (type === 'webgl2') return null;
+        return (original as (...args: unknown[]) => unknown).call(this, type, ...rest);
+      } as typeof original;
+    });
+    await page.goto('./');
+    await expect(page.locator('#webgl-error')).toHaveText('WebGL недоступен');
+  });
+
+  test('offers the reload in Russian when the engine fails', async ({ page }) => {
+    await page.route('**/*.wasm', (route) => route.abort());
+    await page.goto('./');
+    await expect(body(page)).toHaveAttribute('data-toss-state', 'error', { timeout: 15_000 });
+    await expect(page.locator('#engine-error p')).toHaveText(
+      'Что-то пошло не так. Перезагрузи страницу и попробуй снова.',
+    );
+    await expect(button(page, 'Перезагрузить')).toBeVisible();
+  });
 });
 
 test.describe('in a Ukrainian browser', () => {
@@ -43,6 +80,10 @@ test.describe('in a Ukrainian browser', () => {
   test('falls back to English', async ({ page }) => {
     await page.goto('./');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await expect(page.locator('link[rel="manifest"]')).toHaveAttribute(
+      'href',
+      /\/manifest\.webmanifest$/,
+    );
     await expect(page.locator('#hint')).toHaveText('Tap to toss', { timeout: 15_000 });
   });
 });

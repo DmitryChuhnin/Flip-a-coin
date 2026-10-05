@@ -154,6 +154,15 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
 
 document.documentElement.lang = LANGUAGE;
 document.title = STRINGS.title;
+// Read when the player adds the game to the home screen, so the name there is translated too.
+if (LANGUAGE === 'ru') {
+  document
+    .querySelector('link[rel="manifest"]')
+    ?.setAttribute('href', `${import.meta.env.BASE_URL}manifest.ru.webmanifest`);
+}
+document
+  .querySelector('meta[name="apple-mobile-web-app-title"]')
+  ?.setAttribute('content', STRINGS.shortName);
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene');
 const announcer = document.querySelector<HTMLElement>('#toss-result');
