@@ -44,7 +44,15 @@ export function createContactShadow(reach: number): ContactShadow {
   const size = SHADOW.size * reach;
   const mesh = new Mesh(
     new PlaneGeometry(size, size),
-    new MeshBasicMaterial({ map: new CanvasTexture(canvas), transparent: true, depthWrite: false }),
+    new MeshBasicMaterial({
+      map: new CanvasTexture(canvas),
+      transparent: true,
+      depthWrite: false,
+      // A far camera on a very narrow or wide screen cannot resolve the 0.003 gap by depth alone.
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    }),
   );
   mesh.rotation.x = -Math.PI / 2;
   // Just above the floor, so it does not flicker against it.

@@ -8,8 +8,8 @@ body {
 }
 
 body {
-  /* Same color as FLOOR_COLOR in src/scene/studio.ts. */
-  background: #c9b9f8;
+  /* Floor color as rendered under the lights in src/scene/studio.ts; shows before the first frame. */
+  background: #ddc7ff;
   color: #2b2350;
   font-family: system-ui, sans-serif;
   -webkit-tap-highlight-color: transparent;

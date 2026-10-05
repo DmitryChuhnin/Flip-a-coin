@@ -17,9 +17,10 @@ import {
   type WebGLRenderer,
 } from 'three';
 
-// Lilac seamless studio. Keep FLOOR_COLOR in sync with theme-color in index.html and the body
-// background in style.css, which show before the first frame.
-export const FLOOR_COLOR = '#c9b9f8';
+const FLOOR_COLOR = '#c9b9f8';
+// The lit floor as it shows on screen; theme-color in index.html and the body background in
+// style.css use it too. Read it off a frame again after changing the floor or the lights.
+const SCREEN_COLOR = '#ddc7ff';
 const GROUND_COLOR = '#bba9f3';
 const ENV_BOTTOM = '#e2d9fc';
 
@@ -109,17 +110,16 @@ function environment(renderer: WebGLRenderer): Texture {
   return target.texture;
 }
 
-// Intensities were picked on a three.js r128 stand with legacy lights, which scaled every light
-// by π; physically based lights here need the factor written out.
+// Intensities are given in three.js legacy light units, which scaled every light by π;
+// physically based lights need the factor written out.
 const LEGACY = Math.PI;
 
 /**
  * Fills `scene` with the studio and returns its environment map. The map goes on the item's
- * materials only: as `scene.environment` it would also light the Lambert floor, which the stand
- * (three.js r128) did not do.
+ * materials only: as `scene.environment` it would also light the Lambert floor and wash it out.
  */
 export function buildStudio(scene: Scene, renderer: WebGLRenderer): Texture {
-  scene.background = new Color(FLOOR_COLOR);
+  scene.background = new Color(SCREEN_COLOR);
   scene.add(cyclorama());
   scene.add(new HemisphereLight(0xffffff, GROUND_COLOR, 0.6 * LEGACY));
 
