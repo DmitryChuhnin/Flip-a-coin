@@ -77,8 +77,8 @@ interface DieShape {
 
 const PHI = (1 + Math.sqrt(5)) / 2;
 const DENSITY = 1;
-/** Dice keep this much further from the side walls than the coin. */
-const WALL_INSET = 0.15;
+/** A toss still moving after this long is rejected, so no roll outlasts it. */
+export const SETTLE_WITHIN_S = 3.5;
 /** Where a die rests before the first toss, as the coin does. */
 const START: Vec3 = [0, 0, 1];
 
@@ -379,7 +379,8 @@ export function createDie(kind: DieKind): DieModel {
       reduced: DIE_REDUCED_PROFILE,
       touchdown: { flat: -lowest, edge: reach },
       fallback: { lift: 9, halfTurns: [3, 4, 2, 5, 6] },
-      wallInset: WALL_INSET,
+      reducedFallback: { lift: 6.5, halfTurns: [2, 3, 1, 4] },
+      settleWithinS: SETTLE_WITHIN_S,
     },
   });
   return { kind, sides: shape.sides, body, shape: cut, art };

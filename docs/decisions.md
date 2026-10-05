@@ -54,15 +54,24 @@ inside the walls: the recorded fallback rolls up to about 2 units after it lands
 a nearby wall it would pass through it. While airborne a corner can still cross a wall by up to
 about 0.2 units for a moment, as the spinning body grows wider than at rest.
 
-## Dice launch lower and keep further from the side walls
+## Dice launch lower
 
 Dice use one `tumble` profile: lift 7.5 to 8.5 instead of the coin's higher toss, and a spin about
-a random axis. At the coin's lift a d12 or d20 rises above `FLIGHT_CEILING`, the height the wide
-camera view is fitted to. Dice also see the side walls 0.15 units closer (`wallInset`). It was
-needed while the camera kept the walls in view only at table level, where a tall die leaning on a
-wall near the camera crossed the frame edge. The current camera views frame the walls at every
-height; the inset stays until the launch profiles are tuned again. The in-frame test projects the
-hull at every shown pose for each body.
+a random axis. At the lift of a normal coin toss a d12 or d20 rises above `FLIGHT_CEILING`, the height the wide
+camera view is fitted to. The in-frame test projects the hull at every shown pose for each body.
+
+Dice see the same walls as the coin. They used to see them 0.15 units closer (`wallInset`) for a
+camera that kept the walls in view only at table level; the camera views now frame the walls at
+every height, and without the inset fewer die tosses are rejected.
+
+## A die roll is damped after landing and capped at 3.5 s
+
+From the first table impact a die gets angular and linear damping of 1.5 (`landedDamping`), and a
+die toss not settled within 3.5 s simulated (`settleWithinS`) is rejected like any unsettled toss.
+The die fallbacks are recorded with the same damping and limit. Without them a die balanced on an
+edge creeps for seconds before it tips, and a d12 rolled up to 5 s. A lower or slower launch, or damping over the whole flight, left the longest roll near 5 s;
+the cap alone rejected about a quarter of d12 tosses. The coin is not damped this way: its roll on
+the rim is part of the edge toss.
 
 ## Die numbers are a canvas atlas on a mesh equal to the hull
 
@@ -115,9 +124,9 @@ removed with them; old links open the coin or the last saved item.
 ## A new item replaces the old one halfway through the swap
 
 The old model shrinks for the first half of `SWAP_S`, the new one grows for the second, and the
-camera moves to the new close-up over the whole swap. The fallback flight for the new body is recorded
-when the swap ends, not when it starts: recording runs the physics for a whole flight and would
-drop frames of the swap. A toss is ignored until then; an item picked during a swap is queued,
+camera moves to the new close-up over the whole swap. The fallback flights for the new body are
+recorded when the swap ends, not when it starts: recording runs the physics for whole flights and
+would drop frames of the swap. A toss is ignored until then; an item picked during a swap is queued,
 and only the last one picked is shown.
 
 ## The game font is bundled with the build
@@ -160,12 +169,14 @@ start from one fixed rest pose. Each toss is simulated from where the coin lies.
 
 A coin has two outcomes, so a rest pose tilted more than 10° (leaning on its edge or against a
 wall) is not a result. The same limit applies to a die on an edge or against a wall. `planToss`
-rejects it, as well as a flight that has not settled after 6 s simulated, and simulates again with
+rejects it, as well as a flight that has not settled after 6 s simulated (3.5 s for dice), and simulates again with
 a new launch. After three rejections it plays a fallback trajectory, moved to where the body lies
-and remapped to the chosen outcome.
+and remapped to the chosen outcome. Under `prefers-reduced-motion` the fallback is a separate,
+lower recording (`reducedFallback`), so a rejected toss does not rise higher than the reduced
+profile allows.
 
-The fallback is recorded once per body on first use (`engine.ts`), right after the physics engine
-loads for the body on screen. Recording all seven bodies up front would cost every page load for
+Both fallbacks are recorded once per body (`engine.ts`), right after the physics engine loads for
+the body on screen or when a new item is put on the table. Recording all seven bodies up front would cost every page load for
 bodies that are never tossed.
 
 A flight is also rejected when the remap needs a turn but the coin spends less than 0.2 s above its

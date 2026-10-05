@@ -78,6 +78,47 @@ describe('simulateToss', () => {
     expect(frameCount(sim.frames)).toBe(Math.round(MAX_SIMULATED_S / STEP_S) + 1);
   });
 
+  it('stops at a shorter given time limit, and at the start pose for a zero limit', () => {
+    const falling: TossInput = {
+      ...TOSS,
+      start: { ...INITIAL_POSE, position: [0, 400, 0] },
+      linearVelocity: [0, 0, 0],
+    };
+    const short = simulateToss({ ...falling, maxSimulatedS: 0.5 });
+    expect(short.settled).toBe(false);
+    expect(frameCount(short.frames)).toBe(Math.round(0.5 / STEP_S) + 1);
+    const none = simulateToss({ ...falling, maxSimulatedS: 0 });
+    expect(none.settled).toBe(false);
+    expect(frameCount(none.frames)).toBe(1);
+  });
+
+  it('applies the landed damping from the first impact on and settles sooner', () => {
+    const plain = simulateToss(TOSS);
+    const damped = simulateToss({ ...TOSS, landedDamping: { angular: 5, linear: 5 } });
+    const landing = plain.contacts[0]!.frame;
+    expect(damped.contacts[0]!.frame).toBe(landing);
+    const strideAt = (frame: number) => frame * FRAME_STRIDE;
+    expect(damped.frames.slice(0, strideAt(landing + 1))).toEqual(
+      plain.frames.slice(0, strideAt(landing + 1)),
+    );
+    expect(damped.frames.slice(strideAt(landing + 1), strideAt(landing + 10))).not.toEqual(
+      plain.frames.slice(strideAt(landing + 1), strideAt(landing + 10)),
+    );
+    expect(damped.settled).toBe(true);
+    expect(frameCount(damped.frames)).toBeLessThan(frameCount(plain.frames));
+  });
+
+  it('leaves a body that never lands undamped', () => {
+    const resting = {
+      ...TOSS,
+      linearVelocity: [0, 0, 0.5] as const,
+      angularVelocity: [0, 0, 0] as const,
+    };
+    const damped = simulateToss({ ...resting, landedDamping: { angular: 5, linear: 5 } });
+    expect(damped.contacts).toEqual([]);
+    expect(damped.frames).toEqual(simulateToss(resting).frames);
+  });
+
   it('throws on a degenerate hull', () => {
     expect(() => simulateToss({ ...TOSS, hull: new Float32Array([0, 0, 0, 1, 0, 0]) })).toThrow();
   });

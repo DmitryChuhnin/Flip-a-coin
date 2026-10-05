@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { fromAxisAngle, fromTo, multiply, rotate, type Pose, type Quat } from '../math/quat';
-import { FRAME_STRIDE, frameCount, framePose } from '../physics/frames';
+import { FRAME_STRIDE, frameCount, framePose, STEP_S } from '../physics/frames';
 import { initPhysics, simulateToss, type Simulation, type TossInput } from '../physics/simulate';
 import { seededSource } from '../testing/seededSource';
 import { wallOvershoot, wallStarts } from '../testing/wallStarts';
@@ -15,15 +15,20 @@ import {
   type TossPlan,
   type Trajectory,
 } from '../toss/planToss';
-import { createDie, DIE_KINDS, type DieKind } from './dieSpec';
+import { createDie, DIE_KINDS, SETTLE_WITHIN_S, type DieKind } from './dieSpec';
 
 const dice = Object.fromEntries(DIE_KINDS.map((kind) => [kind, createDie(kind)]));
-const fallbacks: Partial<Record<DieKind, Trajectory>> = {};
+const fallbacks: Partial<Record<DieKind, { normal: Trajectory; reduced: Trajectory }>> = {};
 
 beforeAll(async () => {
   await initPhysics();
-  for (const kind of DIE_KINDS)
-    fallbacks[kind] = precomputeFallback(dice[kind]!.body, simulateToss);
+  for (const kind of DIE_KINDS) {
+    const { body } = dice[kind]!;
+    fallbacks[kind] = {
+      normal: precomputeFallback(body, simulateToss, false),
+      reduced: precomputeFallback(body, simulateToss, true),
+    };
+  }
 });
 
 const dot4 = (a: Quat, b: Quat) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
@@ -47,7 +52,7 @@ describe.each(DIE_KINDS)('%s toss', (kind) => {
       body,
       start: body.initialPose,
       reducedMotion: false,
-      fallback: fallbacks[kind]!,
+      fallback: (reducedMotion) => fallbacks[kind]![reducedMotion ? 'reduced' : 'normal'],
       simulate: simulateToss,
       ...overrides,
     });
@@ -63,9 +68,32 @@ describe.each(DIE_KINDS)('%s toss', (kind) => {
       expect(body.faces[up.index]!.value).toBe(result.outcome);
       expect(up.tiltDeg).toBeLessThanOrEqual(MAX_REST_TILT_DEG);
       expect(result.profile).toBe('tumble');
+      expect(result.durationS).toBeLessThanOrEqual(SETTLE_WITHIN_S);
       seen.add(result.outcome);
     }
     expect(seen.size).toBe(sides);
+  });
+
+  it('simulates every roll for at most 3.5 s with damping after landing, fallbacks included', () => {
+    const inputs: TossInput[] = [];
+    const recording = (input: TossInput): Simulation => {
+      inputs.push(input);
+      return simulateToss(input);
+    };
+    const source = seededSource(sides * 7);
+    const plans = [false, true].flatMap((reducedMotion) =>
+      Array.from({ length: 10 }, () => plan({ reducedMotion, simulate: recording, source })),
+    );
+    expect(inputs.length).toBeGreaterThanOrEqual(20);
+    for (const result of plans) expect(result.durationS).toBeLessThanOrEqual(SETTLE_WITHIN_S);
+    for (const reducedMotion of [false, true]) precomputeFallback(body, recording, reducedMotion);
+    for (const input of inputs) {
+      expect(input.landedDamping).toBeDefined();
+      expect(input.maxSimulatedS).toBe(SETTLE_WITHIN_S);
+    }
+    for (const fallback of Object.values(fallbacks[kind]!)) {
+      expect(frameCount(fallback.frames) - 1).toBeLessThanOrEqual(SETTLE_WITHIN_S / STEP_S);
+    }
   });
 
   it('rejects a die resting on an edge and still shows the chosen outcome', () => {
@@ -104,7 +132,7 @@ describe.each(DIE_KINDS)('%s toss', (kind) => {
   });
 
   it('anchors the fallback at a start resting on any face, keeping the rest flat', () => {
-    const fallback = fallbacks[kind]!;
+    const fallback = fallbacks[kind]!.normal;
     const recordedRest = lastPose(fallback.frames);
     for (let face = 0; face < sides; face += 1) {
       const quaternion = multiply(
@@ -126,19 +154,22 @@ describe.each(DIE_KINDS)('%s toss', (kind) => {
     }
   });
 
-  it('lands the anchored fallback flat and inside the walls from a start leaning on a wall', () => {
-    const fallback = fallbacks[kind]!;
-    const landing = fallback.contacts[0]!.frame;
-    for (const start of wallStarts(body)) {
-      const anchored = anchorTrajectory(fallback, start, body);
-      const first = framePose(anchored.frames, 0);
-      for (let k = 0; k < 3; k += 1) expect(first.position[k]).toBeCloseTo(start.position[k]!, 5);
-      expect(Math.abs(dot4(first.quaternion, start.quaternion))).toBeCloseTo(1, 9);
-      expect(wallOvershoot(anchored.frames, body, landing)).toBeLessThanOrEqual(1e-6);
-      const rest = lastPose(anchored.frames);
-      expect(upFace(rest.quaternion, body.faces).tiltDeg).toBeLessThan(1);
-      const bottom = Math.min(...hullVectors(body.hull).map((p) => rotate(rest.quaternion, p)[1]));
-      expect(rest.position[1] + bottom).toBeGreaterThan(-1e-3);
+  it('lands both anchored fallbacks flat and inside the walls from a start leaning on a wall', () => {
+    for (const fallback of Object.values(fallbacks[kind]!)) {
+      const landing = fallback.contacts[0]!.frame;
+      for (const start of wallStarts(body)) {
+        const anchored = anchorTrajectory(fallback, start, body);
+        const first = framePose(anchored.frames, 0);
+        for (let k = 0; k < 3; k += 1) expect(first.position[k]).toBeCloseTo(start.position[k]!, 5);
+        expect(Math.abs(dot4(first.quaternion, start.quaternion))).toBeCloseTo(1, 9);
+        expect(wallOvershoot(anchored.frames, body, landing)).toBeLessThanOrEqual(1e-6);
+        const rest = lastPose(anchored.frames);
+        expect(upFace(rest.quaternion, body.faces).tiltDeg).toBeLessThan(1);
+        const bottom = Math.min(
+          ...hullVectors(body.hull).map((p) => rotate(rest.quaternion, p)[1]),
+        );
+        expect(rest.position[1] + bottom).toBeGreaterThan(-1e-3);
+      }
     }
   });
 
@@ -151,11 +182,18 @@ describe.each(DIE_KINDS)('%s toss', (kind) => {
         ),
       );
     const source = seededSource(31);
-    const reduced = Array.from({ length: 20 }, () => plan({ reducedMotion: true, source }));
+    const reduced = [
+      ...Array.from({ length: 20 }, () => plan({ reducedMotion: true, source })),
+      ...Array.from({ length: 5 }, () =>
+        plan({ reducedMotion: true, simulate: neverSettles, source }),
+      ),
+    ];
     const normal = Array.from({ length: 20 }, () => plan({ source }));
-    expect(reduced.every((p) => p.profile === 'reduced' || p.usedFallback)).toBe(true);
-    const flown = reduced.filter((p) => !p.usedFallback);
-    expect(flown.length).toBeGreaterThan(0);
-    expect(Math.max(...flown.map(apex))).toBeLessThan(Math.min(...normal.map(apex)));
+    expect(reduced.every((p) => p.profile === 'reduced')).toBe(true);
+    expect(reduced.filter((p) => !p.usedFallback).length).toBeGreaterThanOrEqual(15);
+    expect(reduced.filter((p) => p.usedFallback).length).toBeGreaterThanOrEqual(5);
+    expect(Math.max(...reduced.map(apex))).toBeLessThan(Math.min(...normal.map(apex)));
+    const { reduced: profile, reducedFallback: spec } = body.launch;
+    expect(spec.lift).toBeLessThanOrEqual(profile.lift[1]);
   });
 });

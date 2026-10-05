@@ -81,6 +81,6 @@ export const COIN_BODY: TossBody<CoinValue> = defineBody({
     reduced: COIN_REDUCED_PROFILE,
     touchdown: { flat: THICKNESS / 2, edge: CIRCUMRADIUS },
     fallback: { lift: 10.5, halfTurns: [7, 6, 8, 5, 9] },
-    wallInset: 0,
+    reducedFallback: { lift: 8, halfTurns: [4, 3, 5, 2] },
   },
 });

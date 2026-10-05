@@ -57,7 +57,9 @@ function worstNdc(params: CameraParams, aspect: number, hull: readonly Vec3[], p
 beforeAll(async () => {
   await initPhysics();
   for (const [name, body] of Object.entries(BODIES)) {
-    const fallback = precomputeFallback(body, simulateToss);
+    const fallbacks = [false, true].map((reduced) =>
+      precomputeFallback(body, simulateToss, reduced),
+    );
     const source = seededSource(99);
     let start: Pose = body.initialPose;
     plans[name] = [];
@@ -67,7 +69,7 @@ beforeAll(async () => {
         body,
         start,
         reducedMotion,
-        fallback,
+        fallback: (reduced) => fallbacks[reduced ? 1 : 0]!,
         simulate: simulateToss,
         source,
       });
@@ -81,8 +83,9 @@ beforeAll(async () => {
 describe('toss framing', () => {
   for (const [name, body] of Object.entries(BODIES)) {
     it(`keeps the ${name} under the flight ceiling at the highest launch`, () => {
-      const { profiles, reduced, fallback, touchdown } = body.launch;
-      const lift = Math.max(fallback.lift, ...[...profiles, reduced].map((p) => p.lift[1]));
+      const { profiles, reduced, fallback, reducedFallback, touchdown } = body.launch;
+      const lifts = [...profiles, reduced].map((p) => p.lift[1]);
+      const lift = Math.max(fallback.lift, reducedFallback.lift, ...lifts);
       const reach = bodyReach(body.hull);
       expect(touchdown.flat + (lift * lift) / (2 * GRAVITY) + reach).toBeLessThan(FLIGHT_CEILING);
     });

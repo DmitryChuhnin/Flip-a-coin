@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { COIN_BODY, INITIAL_POSE, type CoinValue } from '../coin/coinSpec';
 import { fromAxisAngle, IDENTITY, multiply, type Pose } from '../math/quat';
-import { frameCount, framePose } from '../physics/frames';
+import { durationS, frameCount, framePose } from '../physics/frames';
 import { initPhysics, simulateToss, type Simulation, type TossInput } from '../physics/simulate';
 import { seededSource } from '../testing/seededSource';
 import { wallOvershoot, wallStarts } from '../testing/wallStarts';
@@ -19,11 +19,21 @@ import {
 import { COIN_PROFILES } from './profiles';
 
 let fallback: Trajectory;
+let reducedFallback: Trajectory;
 
 beforeAll(async () => {
   await initPhysics();
-  fallback = precomputeFallback(COIN_BODY, simulateToss);
+  fallback = precomputeFallback(COIN_BODY, simulateToss, false);
+  reducedFallback = precomputeFallback(COIN_BODY, simulateToss, true);
 });
+
+const fallbackFor = (reducedMotion: boolean) => (reducedMotion ? reducedFallback : fallback);
+
+function apex(frames: Float32Array): number {
+  return Math.max(
+    ...Array.from({ length: frameCount(frames) }, (_, i) => framePose(frames, i).position[1]),
+  );
+}
 
 function lastPose(plan: Pick<TossPlan<CoinValue>, 'frames'>): Pose {
   return framePose(plan.frames, frameCount(plan.frames) - 1);
@@ -39,7 +49,7 @@ function plan(overrides: Partial<Parameters<typeof planToss<CoinValue>>[0]> = {}
     body: COIN_BODY,
     start: INITIAL_POSE,
     reducedMotion: false,
-    fallback,
+    fallback: fallbackFor,
     simulate: simulateToss,
     ...overrides,
   });
@@ -135,38 +145,68 @@ describe('planToss', () => {
     );
   });
 
-  it('lands the anchored fallback flat and inside the walls from a start leaning on a wall', () => {
-    const landing = fallback.contacts[0]!.frame;
-    for (const start of wallStarts(COIN_BODY, 16)) {
-      const anchored = anchorTrajectory(fallback, start, COIN_BODY);
-      const first = framePose(anchored.frames, 0);
-      for (let k = 0; k < 3; k += 1) expect(first.position[k]).toBeCloseTo(start.position[k]!, 5);
-      expect(wallOvershoot(anchored.frames, COIN_BODY, landing)).toBeLessThanOrEqual(1e-6);
-      const rest = framePose(anchored.frames, frameCount(anchored.frames) - 1);
-      expect(upFace(rest.quaternion, COIN_BODY.faces).tiltDeg).toBeLessThan(1);
+  it('lands both anchored fallbacks flat and inside the walls from a start leaning on a wall', () => {
+    for (const recorded of [fallback, reducedFallback]) {
+      const landing = recorded.contacts[0]!.frame;
+      for (const start of wallStarts(COIN_BODY, 16)) {
+        const anchored = anchorTrajectory(recorded, start, COIN_BODY);
+        const first = framePose(anchored.frames, 0);
+        for (let k = 0; k < 3; k += 1) expect(first.position[k]).toBeCloseTo(start.position[k]!, 5);
+        expect(wallOvershoot(anchored.frames, COIN_BODY, landing)).toBeLessThanOrEqual(1e-6);
+        const rest = framePose(anchored.frames, frameCount(anchored.frames) - 1);
+        expect(upFace(rest.quaternion, COIN_BODY.faces).tiltDeg).toBeLessThan(1);
+      }
     }
   });
 
   it('uses only the reduced profile under reduced motion and flies lower and shorter', () => {
     const source = seededSource(31);
-    const apex = (p: TossPlan<CoinValue>) =>
-      Math.max(
-        ...Array.from(
-          { length: frameCount(p.frames) },
-          (_, i) => framePose(p.frames, i).position[1],
-        ),
-      );
     const mean = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.length;
-    const reduced = Array.from({ length: 30 }, () => plan({ reducedMotion: true, source }));
+    const neverSettles = (input: TossInput): Simulation => ({
+      ...simulateToss(input),
+      settled: false,
+    });
+    const requested: boolean[] = [];
+    const reduced = [
+      ...Array.from({ length: 30 }, () => plan({ reducedMotion: true, source })),
+      ...Array.from({ length: 10 }, () =>
+        plan({
+          reducedMotion: true,
+          simulate: neverSettles,
+          fallback: (reducedMotion) => {
+            requested.push(reducedMotion);
+            return fallbackFor(reducedMotion);
+          },
+          source,
+        }),
+      ),
+    ];
     const normal = Array.from({ length: 30 }, () => plan({ source })).filter(
       (p) => p.profile === 'normal',
     );
+    expect(requested).toEqual(Array.from({ length: 10 }, () => true));
+    expect(reduced.filter((p) => p.usedFallback)).toHaveLength(10);
     expect(reduced.every((p) => p.profile === 'reduced')).toBe(true);
     expect(normal.length).toBeGreaterThan(10);
-    expect(Math.max(...reduced.map(apex))).toBeLessThan(Math.min(...normal.map(apex)));
+    const apexes = reduced.map((p) => apex(p.frames));
+    expect(Math.max(...apexes)).toBeLessThan(Math.min(...normal.map((p) => apex(p.frames))));
     expect(mean(reduced.map((p) => p.durationS))).toBeLessThan(
       mean(normal.map((p) => p.durationS)),
     );
+  });
+
+  it('refuses to record a fallback without spin rates to try', () => {
+    const launch = { ...COIN_BODY.launch, reducedFallback: { lift: 8, halfTurns: [] } };
+    const body = { ...COIN_BODY, launch };
+    expect(() => precomputeFallback(body, simulateToss, true)).toThrow(/No fallback toss/);
+    expect(() => precomputeFallback(body, simulateToss, false)).not.toThrow();
+  });
+
+  it('records the reduced-motion fallback no higher than the reduced profile reaches', () => {
+    const { reduced, reducedFallback: spec } = COIN_BODY.launch;
+    expect(spec.lift).toBeLessThanOrEqual(reduced.lift[1]);
+    expect(apex(reducedFallback.frames)).toBeLessThan(apex(fallback.frames));
+    expect(durationS(reducedFallback.frames)).toBeLessThan(durationS(fallback.frames));
   });
 
   it('uses every profile without reduced motion', () => {
@@ -174,6 +214,34 @@ describe('planToss', () => {
     const seen = new Set(Array.from({ length: 60 }, () => plan({ source }).profile));
     expect([...seen].sort()).toEqual(COIN_PROFILES.map((p) => p.name).sort());
     expect(seen.has('reduced')).toBe(false);
+  });
+
+  it('tosses the spinner and the edge toss at least 0.5 lower than the normal toss', () => {
+    const only = (name: string) => ({
+      ...COIN_BODY,
+      launch: { ...COIN_BODY.launch, profiles: COIN_PROFILES.filter((p) => p.name === name) },
+    });
+    const source = seededSource(41);
+    const apexes = (name: string) =>
+      Array.from({ length: 20 }, () => apex(plan({ body: only(name), source }).frames));
+    const normal = Math.min(...apexes('normal'));
+    expect(Math.max(...apexes('spinner'))).toBeLessThan(normal - 0.5);
+    expect(Math.max(...apexes('edge'))).toBeLessThan(normal - 0.5);
+  });
+
+  it('simulates the coin without a settle limit or damping after landing', () => {
+    const inputs: TossInput[] = [];
+    const recording = (input: TossInput): Simulation => {
+      inputs.push(input);
+      return simulateToss(input);
+    };
+    const source = seededSource(42);
+    for (let i = 0; i < 10; i += 1) plan({ simulate: recording, source });
+    expect(inputs.length).toBeGreaterThanOrEqual(10);
+    for (const input of inputs) {
+      expect(input.maxSimulatedS).toBeUndefined();
+      expect(input.landedDamping).toBeUndefined();
+    }
   });
 
   it('throws when the fallback cannot show the outcome', () => {
@@ -185,7 +253,12 @@ describe('planToss', () => {
     // The one-frame fallback rests heads up, so every seed that picks tails must throw.
     const outcomes = [1, 2, 3, 4, 5, 6].map((seed) => {
       try {
-        return plan({ fallback: flat, simulate: neverSettles, source: seededSource(seed) }).outcome;
+        const options = {
+          fallback: () => flat,
+          simulate: neverSettles,
+          source: seededSource(seed),
+        };
+        return plan(options).outcome;
       } catch {
         return 'threw';
       }
