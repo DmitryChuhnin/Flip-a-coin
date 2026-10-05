@@ -2,7 +2,6 @@ import { add, scale, sub } from '../math/polyhedron';
 import {
   conjugate,
   IDENTITY,
-  length3,
   multiply,
   rotate,
   slerp,
@@ -21,7 +20,7 @@ import {
 } from '../physics/frames';
 import type { Contact, Simulation, TossInput } from '../physics/simulate';
 import { pickWeighted, randomInt, randomUnit, type Uint32Source } from '../random';
-import { hullVectors, type TossBody } from './body';
+import { bodyReach, type TossBody } from './body';
 import { remapRotation, upFace } from './faces';
 import { sampleImpulse, type Impulse, type ProfileName } from './profiles';
 
@@ -167,7 +166,7 @@ export function anchorTrajectory<V extends string>(
     const offset = rotate(yaw, sub(framePose(trajectory.frames, i).position, origin.position));
     return add(start.position, offset);
   });
-  const reach = Math.max(...hullVectors(body.hull).map(length3));
+  const reach = bodyReach(body.hull);
   const shift = wallShift(centers.slice(landing), reach, body.launch.wallInset);
 
   const frames = new Float32Array(trajectory.frames.length);
