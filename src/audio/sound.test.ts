@@ -35,8 +35,12 @@ class FakeContext {
     this.onstatechange?.();
   }
 
+  gains: ReturnType<typeof param>[] = [];
+
   createGain() {
-    return { ...node(), gain: param() };
+    const gain = param();
+    this.gains.push(gain);
+    return { ...node(), gain };
   }
 
   createOscillator() {
@@ -210,5 +214,66 @@ describe('createSound', () => {
     expect(context.started).toBe(one);
     sound.impact('die', 6);
     expect(context.started).toBe(2 * one);
+  });
+
+  it('plays a launch held for the unlock once, and only the latest of them', async () => {
+    const { sound, context } = setup();
+    context.resume.mockImplementation(() => Promise.resolve());
+    sound.unlock();
+    sound.launch('coin');
+    sound.launch('die');
+    await flush();
+    expect(context.started).toBe(0);
+    context.setRunning();
+    // A knock is a noise burst and a thump; the coin ring would add three more.
+    const knock = context.started;
+    expect(knock).toBe(2);
+    context.state = 'suspended';
+    context.onstatechange?.();
+    context.setRunning();
+    expect(context.started).toBe(knock);
+  });
+
+  it('drops a held launch once its toss hits the table', () => {
+    const { sound, context } = setup();
+    context.resume.mockImplementation(() => Promise.resolve());
+    sound.unlock();
+    sound.launch('coin');
+    sound.impact('coin', 0);
+    context.setRunning();
+    expect(context.started).toBe(0);
+  });
+
+  it('mutes sounds already playing when switched off and restores the volume when on', async () => {
+    const { sound, context } = setup();
+    sound.unlock();
+    await flush();
+    const master = context.gains[0]!;
+    expect(master.value).toBe(0.6);
+    sound.setEnabled(false);
+    expect(master.setValueAtTime).toHaveBeenLastCalledWith(0, context.currentTime);
+    sound.setEnabled(true);
+    expect(master.setValueAtTime).toHaveBeenLastCalledWith(0.6, context.currentTime);
+  });
+
+  it('opens a new context on the next gesture after the browser closed the old one', async () => {
+    const contexts: FakeContext[] = [];
+    const { sound } = setup({
+      createContext: () => {
+        contexts.push(new FakeContext());
+        return contexts.at(-1) as unknown as AudioContext;
+      },
+    });
+    sound.unlock();
+    await flush();
+    contexts[0]!.state = 'closed';
+    contexts[0]!.onstatechange?.();
+    expect(sound.state()).toBe('locked');
+    sound.unlock();
+    await flush();
+    expect(contexts).toHaveLength(2);
+    expect(sound.state()).toBe('running');
+    sound.impact('coin', 8);
+    expect(contexts[1]!.started).toBeGreaterThan(0);
   });
 });

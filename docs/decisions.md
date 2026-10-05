@@ -135,10 +135,21 @@ not repeat one sample. Recorded samples would need a file per sound and size, a 
 each, and a download before the first toss.
 
 Browsers start audio only inside a user gesture, so the first tap both unlocks audio and tosses.
-The unlock listener runs in the capture phase, before the tap reaches the game. A browser without
-Web Audio, or one that refuses to start it, leaves the game silent with no error (`data-audio` on
-`<body>` is `unavailable` or `locked`). Vibration is one short pulse on the first hit of a toss;
-Safari on iOS has no `navigator.vibrate`. The sound switch turns off both.
+The unlock listeners (`src/audio/gestures.ts`) run in the capture phase, before the tap reaches the
+game, on the press and on the release: Chromium on a touch screen grants the activation only on
+`pointerup`, Safari on `touchend` and `click`. The launch sound of a toss that started while audio
+was still locked waits for the context to run and is dropped at the toss's first table hit, so it
+never plays over a later toss. A context the browser closed is replaced on the next gesture.
+
+The rest sound plays when the body stops moving visibly (`stillSinceS` in
+`src/physics/frames.ts`), not at the end of the recording: the engine records another 0.3 s of
+stillness to confirm rest.
+
+A browser without Web Audio, or one that refuses to start it, leaves the game silent with no error
+(`data-audio` on `<body>` is `unavailable` or `locked`). On iOS the ring/silent switch mutes Web
+Audio; the game keeps it that way, as sounds of a game, not media. Vibration is one short pulse on
+the first hit of a toss; Safari on iOS has no `navigator.vibrate`. The sound switch turns off both,
+and mutes sounds already playing.
 
 ## Prerecorded animations are not used
 

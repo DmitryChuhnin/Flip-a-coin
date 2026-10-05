@@ -1,6 +1,7 @@
 import '@fontsource/baloo-2/latin-700.css';
 import '@fontsource/baloo-2/latin-800.css';
 import './style.css';
+import { unlockOnGestures } from './audio/gestures';
 import { createSound, type Voice } from './audio/sound';
 import { startGame, type LoadedItem } from './game';
 import { createItem, type ItemName } from './items';
@@ -80,16 +81,19 @@ function startScene(canvas: HTMLCanvasElement, announcer: HTMLElement, caption: 
 
   let settings = readSettings(storage);
   const sound = createSound({
-    createContext: () => (typeof AudioContext === 'function' ? new AudioContext() : null),
+    createContext: () => {
+      // Safari before 14.1 has only the prefixed constructor.
+      const Context =
+        window.AudioContext ??
+        (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      return typeof Context === 'function' ? new Context() : null;
+    },
     vibrate: typeof navigator.vibrate === 'function' ? (ms) => navigator.vibrate(ms) : null,
     enabled: settings.sound,
     onStateChange: (state) => (document.body.dataset.audio = state),
   });
   document.body.dataset.audio = sound.state();
-  // Capture phase: audio unlocks before the same tap starts the toss and its launch sound.
-  for (const type of ['pointerdown', 'keydown'] as const) {
-    window.addEventListener(type, () => sound.unlock(), { capture: true });
-  }
+  unlockOnGestures(window, () => sound.unlock());
   const shadow = createContactShadow();
   scene.scene.add(shadow.mesh);
   let controls: Controls | null = null;
@@ -113,7 +117,7 @@ function startScene(canvas: HTMLCanvasElement, announcer: HTMLElement, caption: 
       sound.launch(voiceOf(item));
     },
     onImpact: (item, strength) => sound.impact(voiceOf(item), strength),
-    onLand: (item) => sound.settle(voiceOf(item)),
+    onRest: (item) => sound.settle(voiceOf(item)),
   });
   controls = bindControls(document, settings, {
     onChange: (next) => {

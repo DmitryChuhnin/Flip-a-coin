@@ -48,62 +48,75 @@ export function createSound(options: SoundOptions): Sound {
   let output: GainNode | null = null;
   let current: AudioState = 'locked';
   let lastHitS = -Infinity;
-  let resuming: Promise<void> | null = null;
+  /** Launch of the toss in flight that audio was still locked for; dropped at its first hit. */
+  let pendingLaunch: Voice | null = null;
   let landed = false;
 
   function setState(next: AudioState): void {
     if (next === current) return;
     current = next;
     options.onStateChange?.(next);
+    if (next === 'running' && pendingLaunch) playLaunch(pendingLaunch);
   }
 
   function ready(): AudioContext | null {
     return enabled && context && output && context.state === 'running' ? context : null;
   }
 
+  function playLaunch(voice: Voice): void {
+    pendingLaunch = null;
+    const ctx = ready();
+    if (!ctx) return;
+    if (voice === 'coin') ring(ctx, output!, 0.55);
+    else knock(ctx, output!, 0.55, true);
+  }
+
+  function open(): AudioContext | null {
+    const created = options.createContext();
+    if (!created) return null;
+    output = created.createGain();
+    output.gain.value = enabled ? MASTER_GAIN : 0;
+    output.connect(created.destination);
+    created.onstatechange = () => {
+      if (created === context) setState(created.state === 'running' ? 'running' : 'locked');
+    };
+    return created;
+  }
+
   return {
     unlock() {
       if (current === 'unavailable') return;
       try {
-        if (!context) {
-          context = options.createContext();
+        if (!context || context.state === 'closed') {
+          context = open();
           if (!context) {
             setState('unavailable');
             return;
           }
-          output = context.createGain();
-          output.gain.value = MASTER_GAIN;
-          output.connect(context.destination);
-          const created = context;
-          created.onstatechange = () =>
-            setState(created.state === 'running' ? 'running' : 'locked');
         }
         if (context.state === 'running') {
           setState('running');
           return;
         }
-        // A refused resume leaves audio locked until the next gesture tries again.
-        resuming = context.resume().catch(() => {});
+        // A refused or pending resume leaves audio locked; the next gesture tries again.
+        context.resume().catch(() => {});
       } catch {
         setState('unavailable');
       }
     },
     setEnabled(next) {
       enabled = next;
+      // Sounds already started stop too, not only the ones still to come.
+      if (context && output)
+        output.gain.setValueAtTime(next ? MASTER_GAIN : 0, context.currentTime);
     },
     launch(voice) {
       landed = false;
-      const play = () => {
-        const ctx = ready();
-        if (!ctx) return;
-        if (voice === 'coin') ring(ctx, output!, 0.55);
-        else knock(ctx, output!, 0.55, true);
-      };
-      // The first tap both unlocks audio and tosses; the resume settles a few ms later.
-      if (!ready() && resuming) void resuming.then(play);
-      else play();
+      if (ready()) playLaunch(voice);
+      else pendingLaunch = voice;
     },
     impact(voice, strength) {
+      pendingLaunch = null;
       if (enabled && !landed) {
         landed = true;
         options.vibrate?.(VIBRATE_MS);
@@ -116,6 +129,7 @@ export function createSound(options: SoundOptions): Sound {
       else knock(ctx, output!, gain, false);
     },
     settle(voice) {
+      pendingLaunch = null;
       const ctx = ready();
       if (!ctx) return;
       if (voice === 'coin') clink(ctx, output!, 0.12);
