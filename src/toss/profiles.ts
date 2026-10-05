@@ -52,9 +52,9 @@ export interface Launch {
   touchdown: { flat: number; edge: number };
   /** Straight-up toss recorded once per body; spin rates are tried in order until one rests flat. */
   fallback: FallbackSpec;
-  /** The same under reduced motion, as low and slow as the reduced profile. */
+  /** The same under reduced motion, no higher than the reduced profile. */
   reducedFallback: FallbackSpec;
-  /** A toss still moving after this many seconds is rejected; unset allows MAX_SIMULATED_S. */
+  /** A toss not settled within this many seconds is rejected; unset allows MAX_SIMULATED_S. */
   settleWithinS?: number;
 }
 

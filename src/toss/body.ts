@@ -80,6 +80,11 @@ export function defineBody<V extends string>(spec: Omit<TossBody<V>, 'remaps'>):
     throw new RangeError(`Clearance ${spec.clearance} does not clear the hull reach ${reach}`);
   }
 
+  const { settleWithinS } = spec.launch;
+  if (settleWithinS !== undefined && !(Number.isFinite(settleWithinS) && settleWithinS >= 1)) {
+    throw new RangeError(`Settle limit must be at least 1 s, got ${settleWithinS}`);
+  }
+
   const { position, quaternion } = spec.initialPose;
   if (!isUnit(quaternion) || upFace(quaternion, faces).tiltDeg > 0.01) {
     throw new RangeError('Initial pose must rest flat with a unit quaternion');

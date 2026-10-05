@@ -86,6 +86,13 @@ describe('defineBody', () => {
     ],
     ['zero density', (s) => ({ ...s, density: 0 }), /Density/],
     ['clearance inside the hull', (s) => ({ ...s, clearance: 0.5 }), /Clearance/],
+    ...[0.2, -1, Number.NaN, Number.POSITIVE_INFINITY].map(
+      (limit): [string, (spec: Spec) => Spec, RegExp] => [
+        `a settle limit of ${limit}`,
+        (s) => ({ ...s, launch: { ...s.launch, settleWithinS: limit } }),
+        /Settle limit/,
+      ],
+    ),
     [
       'a start pose floating above the table',
       (s) => ({

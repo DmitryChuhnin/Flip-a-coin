@@ -57,7 +57,7 @@ about 0.2 units for a moment, as the spinning body grows wider than at rest.
 ## Dice launch lower
 
 Dice use one `tumble` profile: lift 7.5 to 8.5 instead of the coin's higher toss, and a spin about
-a random axis. At the coin's lift a d12 or d20 rises above `FLIGHT_CEILING`, the height the wide
+a random axis. At the lift of a normal coin toss a d12 or d20 rises above `FLIGHT_CEILING`, the height the wide
 camera view is fitted to. The in-frame test projects the hull at every shown pose for each body.
 
 Dice see the same walls as the coin. They used to see them 0.15 units closer (`wallInset`) for a
@@ -67,9 +67,9 @@ every height, and without the inset fewer die tosses are rejected.
 ## A die roll is damped after landing and capped at 3.5 s
 
 From the first table impact a die gets angular and linear damping of 1.5 (`landedDamping`), and a
-die toss still moving at 3.5 s simulated (`settleWithinS`) is rejected like any unsettled toss.
-Without them a die balanced on an edge creeps for seconds before it tips, and a d12 rolled up to
-5 s. A lower or slower launch, or damping over the whole flight, left the longest roll near 5 s;
+die toss not settled within 3.5 s simulated (`settleWithinS`) is rejected like any unsettled toss.
+The die fallbacks are recorded with the same damping and limit. Without them a die balanced on an
+edge creeps for seconds before it tips, and a d12 rolled up to 5 s. A lower or slower launch, or damping over the whole flight, left the longest roll near 5 s;
 the cap alone rejected about a quarter of d12 tosses. The coin is not damped this way: its roll on
 the rim is part of the edge toss.
 
@@ -124,9 +124,9 @@ removed with them; old links open the coin or the last saved item.
 ## A new item replaces the old one halfway through the swap
 
 The old model shrinks for the first half of `SWAP_S`, the new one grows for the second, and the
-camera moves to the new close-up over the whole swap. The fallback flight for the new body is recorded
-when the swap ends, not when it starts: recording runs the physics for a whole flight and would
-drop frames of the swap. A toss is ignored until then; an item picked during a swap is queued,
+camera moves to the new close-up over the whole swap. The fallback flights for the new body are
+recorded when the swap ends, not when it starts: recording runs the physics for whole flights and
+would drop frames of the swap. A toss is ignored until then; an item picked during a swap is queued,
 and only the last one picked is shown.
 
 ## The game font is bundled with the build

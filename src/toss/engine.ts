@@ -10,7 +10,7 @@ export interface TossEngine {
 }
 
 /** Loads the physics engine; tossing is unavailable until this resolves. */
-export async function createTossEngine(): Promise<TossEngine> {
+export async function createTossEngine(simulate = simulateToss): Promise<TossEngine> {
   await initPhysics();
   // Recorded on first use, so only the bodies actually tossed pay for it.
   const recorded = {
@@ -21,7 +21,7 @@ export async function createTossEngine(): Promise<TossEngine> {
     const fallbacks = reducedMotion ? recorded.reduced : recorded.normal;
     let fallback = fallbacks.get(body);
     if (!fallback) {
-      fallback = precomputeFallback(body, simulateToss, reducedMotion);
+      fallback = precomputeFallback(body, simulate, reducedMotion);
       fallbacks.set(body, fallback);
     }
     return fallback;
@@ -37,7 +37,7 @@ export async function createTossEngine(): Promise<TossEngine> {
         start,
         reducedMotion,
         fallback: (reduced) => fallbackFor(body, reduced),
-        simulate: simulateToss,
+        simulate,
       }),
   };
 }

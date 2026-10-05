@@ -243,6 +243,7 @@ export function precomputeFallback<V extends string>(
 ): Trajectory {
   const { launch } = body;
   const { lift, halfTurns: rates } = reducedMotion ? launch.reducedFallback : launch.fallback;
+  const { landedDamping } = reducedMotion ? launch.reduced : launch.profiles[0]!;
   for (const halfTurns of rates) {
     const flightS = (2 * lift) / GRAVITY;
     const sim = simulate(
@@ -250,6 +251,7 @@ export function precomputeFallback<V extends string>(
         linearVelocity: [0, lift, 0],
         angularVelocity: [(halfTurns * Math.PI) / flightS, 0, 0],
         angularDamping: 0.3,
+        ...(landedDamping && { landedDamping }),
       }),
     );
     if (isFlatRest(sim, body) && isLongEnough(findBlendWindow(sim.frames, body.clearance))) {

@@ -85,10 +85,12 @@ describe.each(DIE_KINDS)('%s toss', (kind) => {
       Array.from({ length: 10 }, () => plan({ reducedMotion, simulate: recording, source })),
     );
     expect(inputs.length).toBeGreaterThanOrEqual(20);
-    expect(inputs.every((input) => input.landedDamping !== undefined)).toBe(true);
     for (const result of plans) expect(result.durationS).toBeLessThanOrEqual(SETTLE_WITHIN_S);
     for (const reducedMotion of [false, true]) precomputeFallback(body, recording, reducedMotion);
-    for (const input of inputs) expect(input.maxSimulatedS).toBe(SETTLE_WITHIN_S);
+    for (const input of inputs) {
+      expect(input.landedDamping).toBeDefined();
+      expect(input.maxSimulatedS).toBe(SETTLE_WITHIN_S);
+    }
     for (const fallback of Object.values(fallbacks[kind]!)) {
       expect(frameCount(fallback.frames) - 1).toBeLessThanOrEqual(SETTLE_WITHIN_S / STEP_S);
     }
@@ -188,6 +190,7 @@ describe.each(DIE_KINDS)('%s toss', (kind) => {
     ];
     const normal = Array.from({ length: 20 }, () => plan({ source }));
     expect(reduced.every((p) => p.profile === 'reduced')).toBe(true);
+    expect(reduced.filter((p) => !p.usedFallback).length).toBeGreaterThanOrEqual(15);
     expect(reduced.filter((p) => p.usedFallback).length).toBeGreaterThanOrEqual(5);
     expect(Math.max(...reduced.map(apex))).toBeLessThan(Math.min(...normal.map(apex)));
     const { reduced: profile, reducedFallback: spec } = body.launch;
