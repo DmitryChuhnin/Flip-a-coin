@@ -59,8 +59,8 @@ export interface PlanOptions<V extends string> {
   /** Where the shown body lies now. */
   start: Pose;
   reducedMotion: boolean;
-  /** Valid trajectory used when every attempt is rejected. */
-  fallback: Trajectory;
+  /** Valid trajectory used when every attempt is rejected, recorded for the given reduced motion. */
+  fallback: (reducedMotion: boolean) => Trajectory;
   simulate: (input: TossInput) => Simulation;
   source?: Uint32Source;
 }
@@ -126,9 +126,9 @@ function yawOf(q: Quat): Quat {
 }
 
 /** Sideways shift that keeps the given center positions `reach` away from the side walls. */
-function wallShift(positions: Vec3[], reach: number, inset: number): Vec3 {
+function wallShift(positions: Vec3[], reach: number): Vec3 {
   const fit = (axis: 0 | 2, wall: number): number => {
-    const limit = wall - inset - reach;
+    const limit = wall - reach;
     const low = Math.min(...positions.map((p) => p[axis]));
     const high = Math.max(...positions.map((p) => p[axis]));
     if (high - low > 2 * limit) return -(high + low) / 2;
@@ -167,7 +167,7 @@ export function anchorTrajectory<V extends string>(
     return add(start.position, offset);
   });
   const reach = bodyReach(body.hull);
-  const shift = wallShift(centers.slice(landing), reach, body.launch.wallInset);
+  const shift = wallShift(centers.slice(landing), reach);
 
   const frames = new Float32Array(trajectory.frames.length);
   centers.forEach((center, i) => {
@@ -210,7 +210,7 @@ export function planToss<V extends string>(options: PlanOptions<V>): TossPlan<V>
     };
   }
 
-  const anchored = anchorTrajectory(options.fallback, start, body);
+  const anchored = anchorTrajectory(options.fallback(reducedMotion), start, body);
   const remap = finish(anchored, desired, body);
   if (!remap) throw new Error('Fallback trajectory has no blend window');
   return {
@@ -219,7 +219,7 @@ export function planToss<V extends string>(options: PlanOptions<V>): TossPlan<V>
     contacts: anchored.contacts,
     ...remap,
     durationS: durationS(anchored.frames),
-    profile: launch.profiles[0]!.name,
+    profile: reducedMotion ? launch.reduced.name : launch.profiles[0]!.name,
     attempts: MAX_ATTEMPTS,
     usedFallback: true,
   };
@@ -231,7 +231,7 @@ function tossInput<V extends string>(body: TossBody<V>, start: Pose, impulse: Im
     density: body.density,
     start,
     ...impulse,
-    wallInset: body.launch.wallInset,
+    ...(body.launch.settleWithinS !== undefined && { maxSimulatedS: body.launch.settleWithinS }),
   };
 }
 
@@ -239,8 +239,10 @@ function tossInput<V extends string>(body: TossBody<V>, start: Pose, impulse: Im
 export function precomputeFallback<V extends string>(
   body: TossBody<V>,
   simulate: (input: TossInput) => Simulation,
+  reducedMotion: boolean,
 ): Trajectory {
-  const { lift, halfTurns: rates } = body.launch.fallback;
+  const { launch } = body;
+  const { lift, halfTurns: rates } = reducedMotion ? launch.reducedFallback : launch.fallback;
   for (const halfTurns of rates) {
     const flightS = (2 * lift) / GRAVITY;
     const sim = simulate(

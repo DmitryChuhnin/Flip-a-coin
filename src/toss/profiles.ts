@@ -1,5 +1,6 @@
 import type { Pose, Vec3 } from '../math/quat';
 import { GRAVITY } from '../physics/frames';
+import type { LandedDamping } from '../physics/simulate';
 
 export type ProfileName = 'normal' | 'edge' | 'spinner' | 'tumble' | 'reduced';
 
@@ -7,6 +8,7 @@ export interface Impulse {
   linearVelocity: Vec3;
   angularVelocity: Vec3;
   angularDamping: number;
+  landedDamping?: LandedDamping;
 }
 
 /** Uniform number in [0, 1). */
@@ -38,6 +40,8 @@ export interface ProfileSpec {
    */
   roll: readonly [min: number, max: number];
   angularDamping: number;
+  /** Damping from the first landing on, angular and linear; unset keeps angularDamping. */
+  landedDamping?: LandedDamping;
 }
 
 export interface Launch {
@@ -47,9 +51,18 @@ export interface Launch {
   /** Body center height at touchdown: lying on a face, and standing on an edge. */
   touchdown: { flat: number; edge: number };
   /** Straight-up toss recorded once per body; spin rates are tried in order until one rests flat. */
-  fallback: { lift: number; halfTurns: readonly number[] };
-  /** How far the walls move inward for this body, see `TossInput.wallInset`. */
-  wallInset: number;
+  fallback: FallbackSpec;
+  /** The same under reduced motion, as low and slow as the reduced profile. */
+  reducedFallback: FallbackSpec;
+  /** A toss still moving after this many seconds is rejected; unset allows MAX_SIMULATED_S. */
+  settleWithinS?: number;
+}
+
+export interface FallbackSpec {
+  /** Upward launch speed, units/s. */
+  lift: number;
+  /** Half-turns about a horizontal axis during the flight. */
+  halfTurns: readonly number[];
 }
 
 export const COIN_PROFILES: readonly ProfileSpec[] = [
@@ -93,6 +106,9 @@ export const COIN_REDUCED_PROFILE: ProfileSpec = {
   angularDamping: 0.3,
 };
 
+/** Without it a die balanced on an edge creeps for seconds before it tips. */
+const DIE_LANDED_DAMPING: LandedDamping = { angular: 1.5, linear: 1.5 };
+
 export const DIE_PROFILE: ProfileSpec = {
   name: 'tumble',
   weight: 1,
@@ -101,6 +117,7 @@ export const DIE_PROFILE: ProfileSpec = {
   flip: { tumble: [12, 20] },
   roll: [0.3, 1],
   angularDamping: 0.4,
+  landedDamping: DIE_LANDED_DAMPING,
 };
 
 export const DIE_REDUCED_PROFILE: ProfileSpec = {
@@ -111,6 +128,7 @@ export const DIE_REDUCED_PROFILE: ProfileSpec = {
   flip: { tumble: [6, 10] },
   roll: [0.2, 0.6],
   angularDamping: 0.4,
+  landedDamping: DIE_LANDED_DAMPING,
 };
 
 /** Where tosses aim to land, in table coordinates; the coin drifts back toward it. */
@@ -176,5 +194,6 @@ export function sampleImpulse(
     ],
     angularVelocity: tumble ?? [axis[0] * flipRate, verticalSpin * sign(unit), axis[2] * flipRate],
     angularDamping: profile.angularDamping,
+    ...(profile.landedDamping && { landedDamping: profile.landedDamping }),
   };
 }
