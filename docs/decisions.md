@@ -57,15 +57,17 @@ about 0.2 units for a moment, as the spinning body grows wider than at rest.
 ## Dice launch lower and keep further from the side walls
 
 Dice use one `tumble` profile: lift 7.5 to 8.5 instead of the coin's higher toss, and a spin about
-a random axis. A d12 or d20 thrown from the back of the table at the coin's lift leaves the top of
-a portrait frame. Dice also see the side walls 0.15 units closer (`wallInset`): a tall die leaning
-on a wall near the camera crosses the frame edge otherwise. The in-frame test projects the hull at
-every shown pose for each body.
+a random axis. At the coin's lift a d12 or d20 rises above `FLIGHT_CEILING`, the height the wide
+camera view is fitted to. Dice also see the side walls 0.15 units closer (`wallInset`). It was
+needed while the camera kept the walls in view only at table level, where a tall die leaning on a
+wall near the camera crossed the frame edge. The current camera views frame the walls at every
+height; the inset stays until the launch profiles are tuned again. The in-frame test projects the
+hull at every shown pose for each body.
 
 ## Die numbers are a canvas atlas on a mesh equal to the hull
 
 The die mesh is built from the same chamfered hull that Rapier collides with, so the rest pose and
-shadow match the simulation. Numbers are drawn into one canvas texture with a cell per face, sized
+the contact with the table match the simulation. Numbers are drawn into one canvas texture with a cell per face, sized
 to keep about 220 texels per world unit, which stays sharp in the close-up on a phone. Glyph
 geometry or per-face textures would add a font file or dozens of textures to the bundle.
 
@@ -79,7 +81,8 @@ The camera keeps a 30° tilt and a 38° field of view in every view, so moving b
 blends position and look point and never rolls or tilts. At rest it frames the body from a fixed
 distance per unit of its reach (`closeUpParams`), where a portrait phone shows the coin across
 about half its width. On a toss it moves within 0.35 s to the view that fits the whole planned
-flight (`flightCorners`, `fitView`), holds it, and returns to the close-up 0.4 s after landing.
+flight (`flightCorners`, `fitView`), holds it, and moves back to the close-up within 0.4 s of
+landing.
 A tap during either move is ignored.
 
 One fixed view cannot do both: the view that keeps any toss from anywhere on the table in frame
@@ -95,9 +98,8 @@ grows and fades with its height and is what shows the height of a flight. A shad
 softness that reads on a phone needs a large map and filtering on every frame.
 
 The environment map reflects only on the item's standard materials. Set as `scene.environment`,
-three.js r186 also applies it to the Lambert floor and washes it out. The light intensities were
-picked on a three.js r128 stand with legacy lights and are written with the factor π that legacy
-mode applied.
+three.js r186 also applies it to the Lambert floor and washes it out. The light intensities are
+in legacy light units and are written with the factor π that legacy mode applied.
 
 ## The item is chosen by a temporary URL parameter
 

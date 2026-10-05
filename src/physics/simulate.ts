@@ -23,10 +23,7 @@ export interface TossInput {
   angularVelocity: Vec3;
   /** Damping keeps a wobbling coin from rocking for many seconds. */
   angularDamping?: number;
-  /**
-   * Moves the walls inward. The camera keeps the walls in view only at table level, so a tall
-   * body leaning on a side wall near the viewer would otherwise poke past the screen edge.
-   */
+  /** Moves the walls inward, keeping a tall body further from the side walls. */
   wallInset?: number;
 }
 
