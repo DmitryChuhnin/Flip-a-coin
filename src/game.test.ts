@@ -293,6 +293,12 @@ describe('startGame', () => {
     expect(game.state()).toBe('result');
     expect(impacts).toHaveLength(3);
     expect(rests).toHaveLength(1);
+
+    game.run(SETTLE_SHOT_S);
+    game.tap();
+    game.run(2.5);
+    expect(impacts).toHaveLength(6);
+    expect(rests).toEqual(['d6', 'd6']);
   });
 
   it('reports a hit on the last frame and several hits within one long frame', async () => {

@@ -147,12 +147,13 @@ Browsers start audio only inside a user gesture, so the first tap both unlocks a
 The unlock listeners (`src/audio/gestures.ts`) run in the capture phase, before the tap reaches the
 game, on the press and on the release: Chromium on a touch screen grants the activation only on
 `pointerup`, Safari on `touchend` and `click`. The launch sound of a toss that started while audio
-was still locked waits for the context to run and is dropped at the toss's first table hit, so it
-never plays over a later toss. A context the browser closed is replaced on the next gesture.
+was still locked waits for the context to run and is dropped at the toss's first table hit, at its
+rest or at the next launch, so it never plays over a later toss. A context the browser closed is
+replaced on the next gesture.
 
 The rest sound plays when the body stops moving visibly (`stillSinceS` in
-`src/physics/frames.ts`), not at the end of the recording: the engine records another 0.3 s of
-stillness to confirm rest.
+`src/physics/frames.ts`), not at the end of the recording: the engine keeps recording while it
+confirms rest, 0.2 to 0.5 s in practice.
 
 A browser without Web Audio, or one that refuses to start it, leaves the game silent with no error
 (`data-audio` on `<body>` is `unavailable` or `locked`). On iOS the ring/silent switch mutes Web

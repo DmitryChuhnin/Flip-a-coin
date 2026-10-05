@@ -48,7 +48,7 @@ export function createSound(options: SoundOptions): Sound {
   let output: GainNode | null = null;
   let current: AudioState = 'locked';
   let lastHitS = -Infinity;
-  /** Launch of the toss in flight that audio was still locked for; dropped at its first hit. */
+  /** Launch that could not play yet (audio locked or off); dropped at the toss's first hit or rest. */
   let pendingLaunch: Voice | null = null;
   let landed = false;
 

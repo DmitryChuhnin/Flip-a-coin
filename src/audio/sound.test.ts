@@ -234,12 +234,19 @@ describe('createSound', () => {
     expect(context.started).toBe(knock);
   });
 
-  it('drops a held launch once its toss hits the table', () => {
+  it('drops a held launch once its toss hits the table or comes to rest', () => {
     const { sound, context } = setup();
     context.resume.mockImplementation(() => Promise.resolve());
     sound.unlock();
     sound.launch('coin');
     sound.impact('coin', 0);
+    context.setRunning();
+    expect(context.started).toBe(0);
+
+    context.state = 'suspended';
+    context.onstatechange?.();
+    sound.launch('coin');
+    sound.settle('coin');
     context.setRunning();
     expect(context.started).toBe(0);
   });

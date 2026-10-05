@@ -26,15 +26,15 @@ describe('stillSinceS', () => {
     expect(stillSinceS(frames)).toBeCloseTo(2 * STEP_S);
   });
 
-  it('counts a rocking wider than half a degree as motion, and a smaller one as rest', () => {
+  it('counts a rocking wider than 1.5° as motion, and a smaller one as rest', () => {
     const rocking = recording([
-      [0.5, tilt(1)],
+      [0.5, tilt(3)],
       [0.5, IDENTITY],
       [0.5, IDENTITY],
     ]);
     expect(stillSinceS(rocking)).toBeCloseTo(STEP_S);
     const trembling = recording([
-      [0.5, tilt(0.2)],
+      [0.5, tilt(1)],
       [0.5, IDENTITY],
       [0.5, IDENTITY],
     ]);

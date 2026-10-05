@@ -31,9 +31,9 @@ export function durationS(frames: Float32Array): number {
   return Math.max(0, frameCount(frames) - 1) * STEP_S;
 }
 
-/** Visible motion below this counts as rest: about 0.1 mm and half a degree. */
-const STILL_DISTANCE = 0.005;
-const STILL_COS_HALF_ANGLE = Math.cos((0.5 * Math.PI) / 180 / 2);
+/** Creep below this counts as rest: about 0.2 mm and 1.5°, what the engine's rest check allows. */
+const STILL_DISTANCE = 0.01;
+const STILL_COS_HALF_ANGLE = Math.cos((1.5 * Math.PI) / 180 / 2);
 
 /** When the body last moved visibly: every later frame stays at its final pose. */
 export function stillSinceS(frames: Float32Array): number {

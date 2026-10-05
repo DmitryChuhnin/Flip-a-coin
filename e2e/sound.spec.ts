@@ -29,6 +29,16 @@ test('unlocks audio on the first tap and vibrates once on landing', async ({ pag
   expect(await vibrations(page)).toBe(1);
 });
 
+test('unlocks audio on a touch release alone', async ({ page }) => {
+  await page.goto('./');
+  await expect(body(page)).toHaveAttribute('data-toss-state', 'idle', { timeout: 15_000 });
+  // Chromium on a touch screen grants the activation only on the release; headless Chromium
+  // grants it everywhere, so this checks that the release is listened to at all.
+  await page.evaluate(() => document.body.dispatchEvent(new Event('touchend', { bubbles: true })));
+  await expect(body(page)).toHaveAttribute('data-audio', 'running');
+  await expect(body(page)).toHaveAttribute('data-toss-count', '0');
+});
+
 test('stays silent and still with the sound switched off', async ({ page }) => {
   await recordVibrations(page);
   await page.goto('./');
