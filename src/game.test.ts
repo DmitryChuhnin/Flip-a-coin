@@ -243,6 +243,42 @@ describe('startGame', () => {
     expect(game.options.caption.hidden).toBe(true);
   });
 
+  it('reports each recorded table hit once, in order, and the rest after the last one', async () => {
+    const impacts: [string, number][] = [];
+    const lands: string[] = [];
+    const game = harness({
+      initialItem: 'd6',
+      onImpact: (item, strength) => impacts.push([item, strength]),
+      onLand: (item) => lands.push(item),
+    });
+    game.engine.plan.mockImplementation(() => ({
+      ...hop(1),
+      contacts: [
+        { frame: 20, strength: 9 },
+        { frame: 27, strength: 2 },
+        { frame: 45, strength: 0.5 },
+      ],
+    }));
+    await flush();
+    game.tap();
+    game.run(0.25);
+    expect(impacts).toEqual([]);
+    game.run(0.1);
+    expect(impacts).toEqual([['d6', 9]]);
+    game.run(0.55);
+    expect(impacts).toEqual([
+      ['d6', 9],
+      ['d6', 2],
+      ['d6', 0.5],
+    ]);
+    expect(lands).toEqual([]);
+    game.run(0.2);
+    expect(lands).toEqual(['d6']);
+    game.run(1);
+    expect(impacts).toHaveLength(3);
+    expect(lands).toHaveLength(1);
+  });
+
   it('resumes a flight where it stopped after the tab was hidden', async () => {
     const game = harness();
     await flush();

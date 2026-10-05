@@ -1,6 +1,7 @@
 import '@fontsource/baloo-2/latin-700.css';
 import '@fontsource/baloo-2/latin-800.css';
 import './style.css';
+import { createSound, type Voice } from './audio/sound';
 import { startGame, type LoadedItem } from './game';
 import { createItem, type ItemName } from './items';
 import { createContactShadow } from './scene/contactShadow';
@@ -45,6 +46,10 @@ function showEngineError(): void {
   panel.hidden = false;
 }
 
+function voiceOf(item: ItemName): Voice {
+  return item === 'coin' ? 'coin' : 'die';
+}
+
 function startScene(canvas: HTMLCanvasElement, announcer: HTMLElement, caption: HTMLElement): void {
   let scene: SceneHandle;
   try {
@@ -74,6 +79,17 @@ function startScene(canvas: HTMLCanvasElement, announcer: HTMLElement, caption: 
   };
 
   let settings = readSettings(storage);
+  const sound = createSound({
+    createContext: () => (typeof AudioContext === 'function' ? new AudioContext() : null),
+    vibrate: typeof navigator.vibrate === 'function' ? (ms) => navigator.vibrate(ms) : null,
+    enabled: settings.sound,
+    onStateChange: (state) => (document.body.dataset.audio = state),
+  });
+  document.body.dataset.audio = sound.state();
+  // Capture phase: audio unlocks before the same tap starts the toss and its launch sound.
+  for (const type of ['pointerdown', 'keydown'] as const) {
+    window.addEventListener(type, () => sound.unlock(), { capture: true });
+  }
   const shadow = createContactShadow();
   scene.scene.add(shadow.mesh);
   let controls: Controls | null = null;
@@ -92,12 +108,18 @@ function startScene(canvas: HTMLCanvasElement, announcer: HTMLElement, caption: 
       controls?.setLocked(state === 'flying' || state === 'error');
       if (state === 'error') showEngineError();
     },
-    onToss: () => controls?.hideHint(),
+    onToss: (item) => {
+      controls?.hideHint();
+      sound.launch(voiceOf(item));
+    },
+    onImpact: (item, strength) => sound.impact(voiceOf(item), strength),
+    onLand: (item) => sound.settle(voiceOf(item)),
   });
   controls = bindControls(document, settings, {
     onChange: (next) => {
       settings = next;
       writeSettings(storage, settings);
+      sound.setEnabled(settings.sound);
       game.selectItem(itemOf(settings));
     },
   });

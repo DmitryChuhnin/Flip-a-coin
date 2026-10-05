@@ -126,6 +126,20 @@ Baloo 2 at weights 700 and 800, Latin subset only, comes from `@fontsource/baloo
 served with the game. A font from a font CDN adds a third-party request on every visit and is
 missing offline. Cyrillic text falls back to the next font in the stack.
 
+## Sounds are synthesized, not recorded
+
+The coin's ring and clink are a few decaying sine partials, a die's knock is a short band-passed
+noise burst over a low thump (`src/audio/sound.ts`). Each table hit recorded in the toss plays at a
+volume set by its approach speed, with the pitch varied by a few percent so a bounce series does
+not repeat one sample. Recorded samples would need a file per sound and size, a licence kept next to
+each, and a download before the first toss.
+
+Browsers start audio only inside a user gesture, so the first tap both unlocks audio and tosses.
+The unlock listener runs in the capture phase, before the tap reaches the game. A browser without
+Web Audio, or one that refuses to start it, leaves the game silent with no error (`data-audio` on
+`<body>` is `unavailable` or `locked`). Vibration is one short pulse on the first hit of a toss;
+Safari on iOS has no `navigator.vibrate`. The sound switch turns off both.
+
 ## Prerecorded animations are not used
 
 A fixed set of baked flights repeats visibly after a few tosses, and every flight would have to

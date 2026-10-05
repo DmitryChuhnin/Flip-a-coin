@@ -1,6 +1,7 @@
 import type { Object3D } from 'three';
 import type { Item, ItemName } from './items';
 import type { Pose, Vec3 } from './math/quat';
+import { STEP_S } from './physics/frames';
 import type { ContactShadow } from './scene/contactShadow';
 import type { SceneHandle } from './scene/createScene';
 import {
@@ -51,7 +52,11 @@ export interface GameOptions {
   reducedMotion: () => boolean;
   onStateChange?: (state: TossState) => void;
   /** Runs when a toss starts. */
-  onToss?: () => void;
+  onToss?: (item: ItemName) => void;
+  /** Runs when playback passes a recorded table hit; `strength` is its approach speed. */
+  onImpact?: (item: ItemName, strength: number) => void;
+  /** Runs when the body comes to rest. */
+  onLand?: (item: ItemName) => void;
 }
 
 export interface Game {
@@ -144,7 +149,7 @@ export function startGame(options: GameOptions): Game {
       durationS: LAUNCH_SHOT_S,
     };
     setState('flying');
-    options.onToss?.();
+    options.onToss?.(current.item.name);
   }
 
   function land(landed: TossPlan<string>): void {
@@ -156,6 +161,7 @@ export function startGame(options: GameOptions): Game {
       startS: nowS,
       durationS: SETTLE_SHOT_S,
     };
+    options.onLand?.(current.item.name);
     announcer.textContent = current.item.announce(landed.outcome);
     showCaption(current.item.caption(landed.outcome));
     setState('result');
@@ -217,7 +223,12 @@ export function startGame(options: GameOptions): Game {
     nowS += dt;
     if (swap) stepSwap(swap);
     if (state === 'flying' && plan) {
+      const fromS = flightS;
       flightS = Math.min(flightS + dt, plan.durationS);
+      for (const contact of plan.contacts) {
+        const atS = contact.frame * STEP_S;
+        if (atS > fromS && atS <= flightS) options.onImpact?.(current.item.name, contact.strength);
+      }
       if (flightS >= plan.durationS) {
         land(plan);
       } else {
