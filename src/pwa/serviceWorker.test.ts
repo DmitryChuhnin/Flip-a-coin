@@ -2,23 +2,45 @@ import { describe, expect, it, vi } from 'vitest';
 import { serviceWorkerSource, type Precache } from './serviceWorker';
 
 const SCOPE = 'https://example.test/flip-a-coin/';
+const PAGE = '<script type="module" src="/flip-a-coin/assets/index-B.js"></script>';
 
-/** In-memory Cache Storage; a cached entry is the body text it was stored with. */
+interface Download {
+  url: string;
+  mode: RequestCache | undefined;
+}
+
+/** A server: the page, then any other path as `new <url>`; `redirect` and `fail` per URL. */
+function server(page = PAGE, { redirect = '', fail = '' } = {}) {
+  const downloads: Download[] = [];
+  const get = async (input: string | Request): Promise<Response> => {
+    const url = typeof input === 'string' ? input : input.url;
+    downloads.push({ url, mode: typeof input === 'string' ? undefined : input.cache });
+    if (url === fail) throw new TypeError('offline');
+    const response = new Response(url === SCOPE ? page : `new ${url}`);
+    if (url === redirect) Object.defineProperty(response, 'redirected', { value: true });
+    return response;
+  };
+  return { get, downloads };
+}
+
+/** In-memory Cache Storage; an entry is the body text it was stored with. */
 class FakeCaches {
   readonly stores = new Map<string, Map<string, string>>();
 
-  constructor(private readonly download: (url: string) => Promise<string>) {}
+  constructor(private readonly get: (input: string | Request) => Promise<Response>) {}
 
   async open(name: string) {
     let store = this.stores.get(name);
     if (!store) this.stores.set(name, (store = new Map()));
     const urlOf = (input: string | Request) => (typeof input === 'string' ? input : input.url);
+    const text = async (value: string | Response) =>
+      typeof value === 'string' ? value : value.text();
     return {
       add: async (input: string | Request) => {
-        store.set(urlOf(input), await this.download(urlOf(input)));
+        store.set(urlOf(input), await (await this.get(input)).text());
       },
-      put: async (url: string, body: string) => {
-        store.set(url, body);
+      put: async (url: string, value: string | Response) => {
+        store.set(url, await text(value));
       },
       match: async (url: string) => store.get(url),
     };
@@ -40,13 +62,14 @@ class FakeCaches {
 
 type Handler = (event: Record<string, unknown>) => void;
 
-function install(precache: Precache, caches: FakeCaches, network: (url: string) => string) {
+function install(precache: Precache, network = server()) {
   const handlers = new Map<string, Handler>();
   const self = {
     registration: { scope: SCOPE },
     addEventListener: (type: string, handler: Handler) => handlers.set(type, handler),
   };
-  const fetch = vi.fn(async (request: { url: string }) => network(request.url));
+  const caches = new FakeCaches(network.get);
+  const fetch = vi.fn(network.get);
   new Function('self', 'caches', 'fetch', serviceWorkerSource(precache))(self, caches, fetch);
 
   async function run(type: string, extra: Record<string, unknown> = {}): Promise<unknown> {
@@ -58,85 +81,84 @@ function install(precache: Precache, caches: FakeCaches, network: (url: string) 
     });
     return pending;
   }
-  return { run, fetch, handles: (type: string) => handlers.has(type) };
+  return { run, fetch, caches, downloads: network.downloads };
 }
 
 const BUILD: Precache = {
   cacheName: 'flip-a-coin-b2',
+  entry: 'assets/index-B.js',
   hashed: ['assets/index-B.js', 'assets/three-A.js'],
-  fresh: ['./', 'manifest.webmanifest'],
+  fresh: ['manifest.webmanifest'],
 };
 
 describe('serviceWorkerSource', () => {
-  it('precaches the whole build on install', async () => {
-    const downloads: string[] = [];
-    const caches = new FakeCaches(async (url) => {
-      downloads.push(url);
-      return `new ${url}`;
-    });
-    const worker = install(BUILD, caches, () => 'network');
+  it('precaches the whole build on install, the page and the manifest past the HTTP cache', async () => {
+    const worker = install(BUILD);
     await worker.run('install');
-    expect(downloads.sort()).toEqual(
+    const downloads = worker.downloads.map(({ url }) => url).sort();
+    expect(downloads).toEqual(
       [
-        `${SCOPE}`,
+        SCOPE,
         `${SCOPE}assets/index-B.js`,
         `${SCOPE}assets/three-A.js`,
         `${SCOPE}manifest.webmanifest`,
       ].sort(),
     );
+    for (const { url, mode } of worker.downloads) {
+      if (url === SCOPE || url.endsWith('.webmanifest')) expect(mode).toBe('reload');
+    }
+    expect(worker.caches.stores.get('flip-a-coin-b2')!.get(SCOPE)).toBe(PAGE);
   });
 
   it('reuses unchanged hashed files from the previous build but downloads the page again', async () => {
-    const downloads: string[] = [];
-    const caches = new FakeCaches(async (url) => {
-      downloads.push(url);
-      return `new ${url}`;
-    });
-    const old = await caches.open('flip-a-coin-b1');
+    const worker = install(BUILD);
+    const old = await worker.caches.open('flip-a-coin-b1');
     await old.put(`${SCOPE}assets/three-A.js`, 'old three');
-    await old.put(`${SCOPE}`, 'old page');
-    const worker = install(BUILD, caches, () => 'network');
+    await old.put(SCOPE, 'old page');
     await worker.run('install');
+    const downloads = worker.downloads.map(({ url }) => url);
     expect(downloads).not.toContain(`${SCOPE}assets/three-A.js`);
-    expect(downloads).toContain(`${SCOPE}`);
-    const fresh = caches.stores.get('flip-a-coin-b2')!;
+    const fresh = worker.caches.stores.get('flip-a-coin-b2')!;
     expect(fresh.get(`${SCOPE}assets/three-A.js`)).toBe('old three');
-    expect(fresh.get(`${SCOPE}`)).toBe(`new ${SCOPE}`);
+    expect(fresh.get(SCOPE)).toBe(PAGE);
   });
 
   it('fails the install when a file cannot be downloaded, keeping the old worker', async () => {
-    const caches = new FakeCaches(async (url) => {
-      if (url.endsWith('three-A.js')) throw new TypeError('offline');
-      return 'ok';
-    });
-    const worker = install(BUILD, caches, () => 'network');
+    const worker = install(BUILD, server(PAGE, { fail: `${SCOPE}assets/three-A.js` }));
     await expect(worker.run('install')).rejects.toThrow('offline');
   });
 
+  it('fails the install for a redirected page or a page of another build', async () => {
+    const redirected = install(BUILD, server(PAGE, { redirect: SCOPE }));
+    await expect(redirected.run('install')).rejects.toThrow('not from this build');
+    const stale = install(BUILD, server(PAGE.replace('index-B', 'index-A')));
+    await expect(stale.run('install')).rejects.toThrow('not from this build');
+  });
+
   it('deletes the older caches of this game on activation and leaves other caches alone', async () => {
-    const caches = new FakeCaches(async () => 'ok');
-    for (const name of ['flip-a-coin-b1', 'flip-a-coin-b2', 'someone-else'])
-      await caches.open(name);
-    const worker = install(BUILD, caches, () => 'network');
+    const worker = install(BUILD);
+    for (const name of ['flip-a-coin-b1', 'flip-a-coin-b2', 'someone-else']) {
+      await worker.caches.open(name);
+    }
     await worker.run('activate');
-    expect(await caches.keys()).toEqual(['flip-a-coin-b2', 'someone-else']);
+    expect(await worker.caches.keys()).toEqual(['flip-a-coin-b2', 'someone-else']);
   });
 
   it('serves the cached page for any navigation in scope and cached files cache-first', async () => {
-    const caches = new FakeCaches(async (url) => `cached ${url}`);
-    const worker = install(BUILD, caches, () => 'network');
+    const worker = install(BUILD);
     await worker.run('install');
+    worker.fetch.mockClear();
     const get = (url: string, mode = 'cors') =>
       worker.run('fetch', { request: { url, method: 'GET', mode } });
-    expect(await get(`${SCOPE}?lang=ru`, 'navigate')).toBe(`cached ${SCOPE}`);
-    expect(await get(`${SCOPE}assets/three-A.js`)).toBe(`cached ${SCOPE}assets/three-A.js`);
+    expect(await get(`${SCOPE}?lang=ru`, 'navigate')).toBe(PAGE);
+    expect(await get(`${SCOPE}assets/three-A.js`)).toBe(`new ${SCOPE}assets/three-A.js`);
     expect(worker.fetch).not.toHaveBeenCalled();
-    expect(await get(`${SCOPE}assets/missing.js`)).toBe('network');
+    const missing = await get(`${SCOPE}assets/missing.js`);
+    expect(await (missing as Response).text()).toBe(`new ${SCOPE}assets/missing.js`);
   });
 
   it('leaves requests outside its scope and non-GET requests to the browser', async () => {
-    const caches = new FakeCaches(async () => 'ok');
-    const worker = install(BUILD, caches, () => 'network');
+    const worker = install(BUILD);
     const responded = vi.fn();
     for (const request of [
       { url: 'https://example.test/other/', method: 'GET', mode: 'navigate' },

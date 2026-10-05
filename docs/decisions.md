@@ -135,7 +135,7 @@ Baloo 2 at weights 700 and 800, Latin subset only, comes from `@fontsource/baloo
 served with the game. A font from a font CDN adds a third-party request on every visit and is
 missing offline. Baloo 2 has no Cyrillic, so the stack continues with the Cyrillic subset of
 Nunito 700 (`@fontsource/nunito`), a rounded face of similar weight. The browser takes from it
-only the glyphs Baloo 2 lacks and downloads it only when such text is on screen.
+only the glyphs Baloo 2 lacks. The service worker precaches it for every player, about 17 kB.
 
 ## The language follows the browser's first preferred language
 
@@ -153,13 +153,19 @@ them, then requests in scope are answered from the cache first, and every page l
 cached page. A page whose worker failed to register still runs online.
 
 - A new worker does not call `skipWaiting`: it takes over once every tab of the old version is
-  closed. An open old page still loads the physics chunk and the wasm lazily, and with an early
-  switch neither is in the new cache nor, after a deploy, on the server.
+  closed; reloading an open tab keeps the old version. An open old page still loads the physics
+  chunk and the wasm lazily, and with an early switch neither is in the new cache nor, after a
+  deploy, on the server.
+- The install fails, and the old version stays, when the page at the scope URL is redirected or
+  does not load this build's entry script. Chrome refuses a redirected response for a page load,
+  and a stale page from a cache in front of the server would point at deleted files. The server
+  must answer `/flip-a-coin/` with the page itself, not a redirect.
 - Content-hashed files are copied from the previous cache, so an update downloads only what
   changed. The page, the manifest and the icons keep their names across builds and are always
   downloaded again, bypassing the HTTP cache; a copied page would point at the old build.
-- The cache name hashes the file list, the page and the public files. Activation deletes the
-  game's older caches and no others.
+- The cache name hashes the worker's code with its file lists, the page and the public files.
+  Activation deletes the game's older caches and no others. Dotfiles in `public/` are not
+  precached: a server that refuses them would fail every install.
 - `vite-plugin-pwa` (Workbox) would cover the same with a large dependency tree tied to Vite
   versions; precache, cleanup and the page fallback are about 50 lines here.
 

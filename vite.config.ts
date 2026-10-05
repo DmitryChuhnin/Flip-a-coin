@@ -40,7 +40,7 @@ function rapierWasmAsset(): Plugin {
 
 /**
  * Emits `sw.js` listing every built and public file. The cache name hashes the file names, the
- * page and the public files, so any change to the build gives a new cache.
+ * page, the public files and the worker's own code, so any change to the build gives a new cache.
  */
 function serviceWorker(): Plugin {
   let publicDir = '';
@@ -54,22 +54,30 @@ function serviceWorker(): Plugin {
     generateBundle(_options, bundle) {
       const page = bundle['index.html'];
       if (page?.type !== 'asset') this.error('index.html is missing from the bundle');
+      const entries = Object.values(bundle).filter(
+        (file) => file.type === 'chunk' && file.isEntry && file.facadeModuleId?.endsWith('.html'),
+      );
+      if (entries.length !== 1)
+        this.error(`Expected one page entry chunk, found ${entries.length}`);
       const hashed = Object.keys(bundle)
         .filter((name) => name !== 'index.html' && !name.endsWith('.map'))
         .sort();
+      // Dotfiles (.DS_Store) are often refused by the server, and one failed file fails the install.
       const publicFiles = readdirSync(publicDir, { recursive: true, withFileTypes: true })
-        .filter((entry) => entry.isFile())
+        .filter((entry) => entry.isFile() && !entry.name.startsWith('.'))
         .map((entry) => join(entry.parentPath, entry.name).slice(publicDir.length + 1))
         .sort();
-      const hash = createHash('sha256').update(hashed.join('\n')).update(page.source);
+      const precache = { entry: entries[0]!.fileName, hashed, fresh: publicFiles };
+      const hash = createHash('sha256')
+        .update(serviceWorkerSource({ cacheName: '', ...precache }))
+        .update(page.source);
       for (const name of publicFiles) hash.update(name).update(readFileSync(join(publicDir, name)));
       this.emitFile({
         type: 'asset',
         fileName: 'sw.js',
         source: serviceWorkerSource({
           cacheName: CACHE_PREFIX + hash.digest('hex').slice(0, 12),
-          hashed,
-          fresh: ['./', ...publicFiles],
+          ...precache,
         }),
       });
     },

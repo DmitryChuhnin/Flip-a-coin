@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { expect, test } from '@playwright/test';
 
 const body = (page: import('@playwright/test').Page) => page.locator('body');
@@ -30,4 +32,16 @@ test('links a manifest whose icons load', async ({ page, request }) => {
     expect(response.ok()).toBe(true);
     expect(response.headers()['content-type']).toBe('image/png');
   }
+});
+
+test('precaches every built file except the worker itself', () => {
+  const dist = join(import.meta.dirname, '..', 'dist');
+  const built = readdirSync(dist, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => relative(dist, join(entry.parentPath, entry.name)))
+    .filter((name) => name !== 'sw.js' && name !== 'index.html');
+  const worker = readFileSync(join(dist, 'sw.js'), 'utf8');
+  const list = (name: string) =>
+    JSON.parse(new RegExp(`const ${name} = (\\[.*\\]);`).exec(worker)![1]!) as string[];
+  expect([...list('HASHED'), ...list('FRESH')].sort()).toEqual(built.sort());
 });

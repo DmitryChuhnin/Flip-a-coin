@@ -1,6 +1,6 @@
 import '@fontsource/baloo-2/latin-700.css';
 import '@fontsource/baloo-2/latin-800.css';
-// Baloo 2 has no Cyrillic; the browser takes those glyphs from Nunito and downloads it only then.
+// Baloo 2 has no Cyrillic; the browser takes those glyphs from Nunito.
 import '@fontsource/nunito/cyrillic-700.css';
 import './style.css';
 import { unlockOnGestures } from './audio/gestures';
