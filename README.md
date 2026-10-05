@@ -27,12 +27,15 @@ preview server).
 
 - `src/main.ts`: entry point; WebGL2 check, render loop, pause while the tab is hidden.
 - `src/game.ts`: toss states (`loading`, `idle`, `flying`, `result`, `error`), tap and Space/Enter
-  input, result announcement and the rolled number caption, camera dolly. Exposes
+  input, result announcement and the rolled number caption, camera moves. Exposes
   `data-toss-state`, `data-toss-count` and `data-item` on `<body>`.
 - `src/items.ts`: the tossable items (coin and dice), the `?item=` selector, announcements.
-- `src/scene/createScene.ts`: renderer, table, lights, resize handling.
-- `src/scene/camera.ts`: camera placement that keeps the play zone on the table fully in view
-  for any aspect ratio; `src/scene/dolly.ts` moves it toward the coin after a toss.
+- `src/scene/createScene.ts`: renderer, camera, resize handling.
+- `src/scene/studio.ts`: the lilac studio backdrop, lights and the environment map.
+- `src/scene/contactShadow.ts`: the soft spot under the body that stands in for a shadow map.
+- `src/scene/camera.ts`: camera views: the close-up on a resting body, a view that fits a set of
+  points for any aspect ratio, and the wide view of the whole table;
+  `src/scene/shots.ts` moves the camera between them on launch and landing.
 - `src/coin/`: coin dimensions, convex hull, faces and symmetries (`coinSpec.ts`) and the
   procedural three.js mesh (`coinMesh.ts`).
 - `src/dice/`: d4 to d20 shapes, numbering, faces and rest poses (`dieSpec.ts`) and the mesh with

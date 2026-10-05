@@ -66,12 +66,38 @@ every shown pose for each body.
 
 The die mesh is built from the same chamfered hull that Rapier collides with, so the rest pose and
 shadow match the simulation. Numbers are drawn into one canvas texture with a cell per face, sized
-to keep about 220 texels per world unit, which stays sharp after the dolly on a phone. Glyph
+to keep about 220 texels per world unit, which stays sharp in the close-up on a phone. Glyph
 geometry or per-face textures would add a font file or dozens of textures to the bundle.
 
 Each label carries `maxWidth`, the widest text that stays on the cut face over the label's height
 and underline. The canvas squeezes wider text to it, so a font with wider digits than expected
 narrows the number instead of printing it onto the untextured bevel.
+
+## The camera holds a close-up at rest and a per-toss view in flight
+
+The camera keeps a 30° tilt and a 38° field of view in every view, so moving between two views
+blends position and look point and never rolls or tilts. At rest it frames the body from a fixed
+distance per unit of its reach (`closeUpParams`), where a portrait phone shows the coin across
+about half its width. On a toss it moves within 0.35 s to the view that fits the whole planned
+flight (`flightCorners`, `fitView`), holds it, and returns to the close-up 0.4 s after landing.
+A tap during either move is ignored.
+
+One fixed view cannot do both: the view that keeps any toss from anywhere on the table in frame
+shows the coin at about a fifth of a portrait screen, and the close-up loses most flights at the
+top edge. A camera that follows the body hides the rise it is meant to show. Under
+`prefers-reduced-motion` the camera stays in the fixed wide view (`computeCameraParams`). The
+in-frame test checks every shown pose with the camera as it is at that moment.
+
+## The studio has no shadow map
+
+The scene renders without a shadow map; a soft radial spot under the body (`contactShadow.ts`)
+grows and fades with its height and is what shows the height of a flight. A shadow map at a
+softness that reads on a phone needs a large map and filtering on every frame.
+
+The environment map reflects only on the item's standard materials. Set as `scene.environment`,
+three.js r186 also applies it to the Lambert floor and washes it out. The light intensities were
+picked on a three.js r128 stand with legacy lights and are written with the factor π that legacy
+mode applied.
 
 ## The item is chosen by a temporary URL parameter
 
