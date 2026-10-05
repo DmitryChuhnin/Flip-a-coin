@@ -133,7 +133,49 @@ and only the last one picked is shown.
 
 Baloo 2 at weights 700 and 800, Latin subset only, comes from `@fontsource/baloo-2` and is
 served with the game. A font from a font CDN adds a third-party request on every visit and is
-missing offline. Cyrillic text falls back to the next font in the stack.
+missing offline. Baloo 2 has no Cyrillic, so the stack continues with the Cyrillic subset of
+Nunito 700 (`@fontsource/nunito`), a rounded face of similar weight. The browser takes from it
+only the glyphs Baloo 2 lacks. The service worker precaches it for every player, about 17 kB.
+
+## The language follows the browser's first preferred language
+
+Russian when `navigator.languages[0]` is `ru` or `ru-*`, English for everything else
+(`src/strings.ts`). A Russian further down the list does not count: the first entry is what the
+reader picked for the browser itself. There is no language switch; the sound switch is the only
+setting. A Russian page points its manifest link at `manifest.ru.webmanifest` and sets the iOS
+home screen title, so the installed app is named in Russian too; both manifests share one `id`. Unit tests pin the language to English (`src/testing/englishBrowser.ts`) because Node
+reports the machine's locale.
+
+## The game works offline through its own service worker
+
+The build emits `sw.js` (`serviceWorker` plugin in `vite.config.ts`, source in
+`src/pwa/serviceWorker.ts`) that lists every built and public file. Install precaches all of
+them, then requests in scope are answered from the cache first, and every page load gets the
+cached page. A page whose worker failed to register still runs online.
+
+- A new worker does not call `skipWaiting`: it takes over once every tab of the old version is
+  closed; reloading an open tab keeps the old version. An open old page still loads the physics
+  chunk and the wasm lazily, and with an early switch neither is in the new cache nor, after a
+  deploy, on the server.
+- The install fails, and the old version stays, when the page at the scope URL is redirected or
+  does not load this build's entry script. Chrome refuses a redirected response for a page load,
+  and a stale page from a cache in front of the server would point at deleted files. The server
+  must answer `/flip-a-coin/` with the page itself, not a redirect.
+- Content-hashed files are copied from the previous cache, so an update downloads only what
+  changed. The page, the manifest and the icons keep their names across builds and are always
+  downloaded again, bypassing the HTTP cache; a copied page would point at the old build.
+- The cache name hashes the worker's code with its file lists, the page and the public files.
+  Activation deletes the game's older caches and no others. Dotfiles in `public/` are not
+  precached: a server that refuses them would fail every install.
+- `vite-plugin-pwa` (Workbox) would cover the same with a large dependency tree tied to Vite
+  versions; precache, cleanup and the page fallback are about 50 lines here.
+
+## three.js is a chunk of its own
+
+three.js is about 550 kB minified, one module the first frame needs, so splitting it further
+gains nothing and the chunk size warning limit is 600 kB. It lives in its own chunk, which keeps
+its name across releases that change only the game code and is then copied by the service
+worker instead of downloaded.
 
 ## Sounds are synthesized, not recorded
 

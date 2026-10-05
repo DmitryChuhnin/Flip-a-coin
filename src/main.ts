@@ -1,5 +1,7 @@
 import '@fontsource/baloo-2/latin-700.css';
 import '@fontsource/baloo-2/latin-800.css';
+// Baloo 2 has no Cyrillic; the browser takes those glyphs from Nunito.
+import '@fontsource/nunito/cyrillic-700.css';
 import './style.css';
 import { unlockOnGestures } from './audio/gestures';
 import { createSound, type Voice } from './audio/sound';
@@ -8,7 +10,7 @@ import { createItem, type ItemName } from './items';
 import { createContactShadow } from './scene/contactShadow';
 import { createScene, type SceneHandle } from './scene/createScene';
 import { itemOf, readSettings, writeSettings } from './settings';
-import { STRINGS } from './strings';
+import { LANGUAGE, STRINGS } from './strings';
 import { bodyReach, hullVectors } from './toss/body';
 import { bindControls, type Controls } from './ui/controls';
 
@@ -25,7 +27,10 @@ function hasWebGL2(): boolean {
 }
 
 function showWebGLError(): void {
-  document.querySelector<HTMLElement>('#webgl-error')?.removeAttribute('hidden');
+  const message = document.querySelector<HTMLElement>('#webgl-error');
+  if (!message) return;
+  message.textContent = STRINGS.webglError;
+  message.hidden = false;
 }
 
 function prefersReducedMotion(): () => boolean {
@@ -141,6 +146,23 @@ function startScene(canvas: HTMLCanvasElement, announcer: HTMLElement, caption: 
     scene.start();
   }
 }
+
+// Offline play after the first visit; where registration fails the game still runs online.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {});
+}
+
+document.documentElement.lang = LANGUAGE;
+document.title = STRINGS.title;
+// Read when the player adds the game to the home screen, so the name there is translated too.
+if (LANGUAGE === 'ru') {
+  document
+    .querySelector('link[rel="manifest"]')
+    ?.setAttribute('href', `${import.meta.env.BASE_URL}manifest.ru.webmanifest`);
+}
+document
+  .querySelector('meta[name="apple-mobile-web-app-title"]')
+  ?.setAttribute('content', STRINGS.shortName);
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene');
 const announcer = document.querySelector<HTMLElement>('#toss-result');
