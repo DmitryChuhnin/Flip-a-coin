@@ -70,11 +70,15 @@ test('ignores taps until the physics engine has loaded', async ({ page }) => {
   await expect(body(page)).toHaveAttribute('data-toss-count', '1');
 });
 
-test('keeps tossing unavailable when the physics engine fails to load', async ({ page }) => {
+test('keeps tossing unavailable and offers a reload when the physics engine fails to load', async ({
+  page,
+}) => {
   await page.route('**/*.wasm', (route) => route.abort());
   await page.goto('./');
 
   await expect(body(page)).toHaveAttribute('data-toss-state', 'error', { timeout: 15_000 });
+  await expect(page.getByRole('alert')).toContainText('Something went wrong');
+  await expect(page.getByRole('button', { name: 'Reload' })).toBeVisible();
   await page.locator('#scene').tap();
   await expect(body(page)).toHaveAttribute('data-toss-count', '0');
 });

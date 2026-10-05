@@ -1,9 +1,14 @@
+import '@fontsource/baloo-2/latin-700.css';
+import '@fontsource/baloo-2/latin-800.css';
 import './style.css';
-import { startGame } from './game';
-import { createItem, itemFromQuery } from './items';
+import { startGame, type LoadedItem } from './game';
+import { createItem, type ItemName } from './items';
 import { createContactShadow } from './scene/contactShadow';
 import { createScene, type SceneHandle } from './scene/createScene';
-import { bodyReach } from './toss/body';
+import { itemOf, readSettings, writeSettings } from './settings';
+import { STRINGS } from './strings';
+import { bodyReach, hullVectors } from './toss/body';
+import { bindControls, type Controls } from './ui/controls';
 
 // Probed on a throwaway canvas: three.js r163+ needs WebGL2, and a failed WebGLRenderer
 // constructor logs to console.error before throwing.
@@ -26,6 +31,20 @@ function prefersReducedMotion(): () => boolean {
   return () => query?.matches ?? false;
 }
 
+function storage(): Storage | null {
+  return window.localStorage;
+}
+
+function showEngineError(): void {
+  const panel = document.querySelector<HTMLElement>('#engine-error');
+  if (!panel) return;
+  panel.querySelector('p')!.textContent = STRINGS.engineError;
+  const reload = panel.querySelector('button')!;
+  reload.textContent = STRINGS.reload;
+  reload.onclick = () => window.location.reload();
+  panel.hidden = false;
+}
+
 function startScene(canvas: HTMLCanvasElement, announcer: HTMLElement, caption: HTMLElement): void {
   let scene: SceneHandle;
   try {
@@ -37,23 +56,50 @@ function startScene(canvas: HTMLCanvasElement, announcer: HTMLElement, caption: 
     return;
   }
 
-  const item = createItem(itemFromQuery(window.location.search));
-  const model = item.createMesh();
-  const reach = bodyReach(item.body.hull);
-  const shadow = createContactShadow(reach);
-  scene.addItem(model);
+  // Each item is built once; switching back reuses its model and symmetry tables.
+  const loaded = new Map<ItemName, LoadedItem>();
+  const loadItem = (name: ItemName): LoadedItem => {
+    let entry = loaded.get(name);
+    if (!entry) {
+      const item = createItem(name);
+      entry = {
+        item,
+        model: item.createMesh(),
+        hull: hullVectors(item.body.hull),
+        reach: bodyReach(item.body.hull),
+      };
+      loaded.set(name, entry);
+    }
+    return entry;
+  };
+
+  let settings = readSettings(storage);
+  const shadow = createContactShadow();
   scene.scene.add(shadow.mesh);
+  let controls: Controls | null = null;
   const game = startGame({
     canvas,
     scene,
-    item,
-    model,
     shadow,
     announcer,
     caption,
+    initialItem: itemOf(settings),
+    loadItem,
     // Separate chunk: the scene shows while the physics engine downloads.
     loadEngine: () => import('./toss/engine').then((engine) => engine.createTossEngine()),
     reducedMotion: prefersReducedMotion(),
+    onStateChange: (state) => {
+      controls?.setLocked(state === 'flying');
+      if (state === 'error') showEngineError();
+    },
+    onToss: () => controls?.hideHint(),
+  });
+  controls = bindControls(document, settings, {
+    onChange: (next) => {
+      settings = next;
+      writeSettings(storage, settings);
+      game.selectItem(itemOf(settings));
+    },
   });
 
   document.addEventListener('visibilitychange', () => {

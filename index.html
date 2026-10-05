@@ -9,7 +9,39 @@
   <body>
     <canvas id="scene"></canvas>
     <p id="webgl-error" hidden>WebGL is not available</p>
+    <div id="controls" class="controls" hidden>
+      <div class="top">
+        <div id="tabs" class="tabs glass" role="group" data-tab="coin">
+          <span class="knob" aria-hidden="true"></span>
+          <button type="button" class="tab" data-tab="coin" aria-pressed="true"></button>
+          <button type="button" class="tab" data-tab="dice" aria-pressed="false"></button>
+        </div>
+        <button type="button" id="sound" class="round glass" aria-pressed="true">
+          <svg
+            width="22"
+            height="22"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M11 5 6 9H2v6h4l5 4V5z" />
+            <path class="sound-on" d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14" />
+            <path class="sound-off" d="m22 9-6 6M16 9l6 6" />
+          </svg>
+        </button>
+      </div>
+      <p id="hint" class="hint" hidden></p>
+      <div id="tray" class="tray glass" role="group" hidden></div>
+    </div>
     <p id="roll-number" aria-hidden="true" hidden></p>
+    <div id="engine-error" class="engine-error" role="alert" hidden>
+      <p></p>
+      <button type="button" class="round-text glass"></button>
+    </div>
     <p id="toss-result" class="visually-hidden" aria-live="polite"></p>
     <script type="module" src="/src/main.ts"></script>
   </body>
