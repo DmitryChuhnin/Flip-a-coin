@@ -290,14 +290,22 @@ describe('selectItem', () => {
     game.tap();
     expect(game.tosses()).toBe('1');
 
+    const d6 = game.items.get('d6')!.model;
     const d20 = game.items.get('d20')!.model;
     game.run(SWAP_S / 4);
     expect(game.scene.addItem).not.toHaveBeenCalledWith(d20);
+    expect(d6.scale.x).toBeGreaterThan(0);
+    expect(d6.scale.x).toBeLessThan(1);
+    game.run(SWAP_S * 0.35);
+    expect(game.scene.addItem).toHaveBeenCalledWith(d20);
+    expect(d20.scale.x).toBeLessThan(1);
+    expect(game.engine.prepare).toHaveBeenCalledTimes(1);
     game.run(SWAP_S);
     expect(game.scene.removeItem).toHaveBeenCalledWith(game.items.get('d6')!.model);
     expect(game.scene.addItem).toHaveBeenCalledWith(d20);
     expect(d20.scale.x).toBe(1);
-    expect(game.engine.prepare).toHaveBeenCalledWith(game.items.get('d20')!.item.body);
+    expect(game.engine.prepare).toHaveBeenCalledTimes(2);
+    expect(game.engine.prepare.mock.lastCall![0]).toBe(game.items.get('d20')!.item.body);
     game.tap();
     expect(game.tosses()).toBe('2');
   });
@@ -323,6 +331,20 @@ describe('selectItem', () => {
     expect(game.scene.addItem).toHaveBeenLastCalledWith(game.items.get('d4')!.model);
     game.tap();
     expect(game.tosses()).toBe('1');
+  });
+
+  it('records the fallback for an item picked while loading only when the swap ends', async () => {
+    let resolve: (engine: TossEngine) => void = () => {};
+    const game = harness({ loadEngine: () => new Promise((r) => (resolve = r)) });
+    game.api.selectItem('d8');
+    game.run(SWAP_S / 4);
+    resolve(game.engine as unknown as TossEngine);
+    await flush();
+    expect(game.state()).toBe('idle');
+    expect(game.engine.prepare).not.toHaveBeenCalled();
+    game.run(SWAP_S);
+    expect(game.engine.prepare).toHaveBeenCalledTimes(1);
+    expect(game.engine.prepare.mock.lastCall![0]).toBe(game.items.get('d8')!.item.body);
   });
 
   it('goes to error when the item cannot be built', async () => {

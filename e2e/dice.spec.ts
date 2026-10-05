@@ -82,8 +82,10 @@ test('ignores a tap while the camera settles on the landed die', async ({ page }
   await expect(body(page)).toHaveAttribute('data-toss-count', '2');
 });
 
-test('falls back to the coin for an unknown saved item and shows no caption', async ({ page }) => {
-  await openWith(page, { tab: 'die', die: 'd7' });
+test('opens the coin for an unknown saved tab and shows no caption after a toss', async ({
+  page,
+}) => {
+  await openWith(page, { tab: 'die', die: 'd6' });
   await expect(body(page)).toHaveAttribute('data-item', 'coin');
   await expect(body(page)).toHaveAttribute('data-toss-state', 'idle', { timeout: 15_000 });
 
@@ -91,4 +93,9 @@ test('falls back to the coin for an unknown saved item and shows no caption', as
   await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: 10_000 });
   await expect(page.locator('#toss-result')).toHaveText(/^(Heads|Tails)$/);
   await expect(page.locator('#roll-number')).toBeHidden();
+});
+
+test('opens the d20 for an unknown saved die on the dice tab', async ({ page }) => {
+  await openWith(page, { tab: 'dice', die: 'd7' });
+  await expect(body(page)).toHaveAttribute('data-item', 'd20');
 });

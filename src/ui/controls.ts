@@ -8,7 +8,7 @@ export interface ControlsHandlers {
 }
 
 export interface Controls {
-  /** Disables the item tabs and dice while a toss is in flight; the sound button stays on. */
+  /** Disables the item tabs and dice; the sound button stays on. */
   setLocked(locked: boolean): void;
   hideHint(): void;
 }

@@ -89,7 +89,7 @@ function startScene(canvas: HTMLCanvasElement, announcer: HTMLElement, caption: 
     loadEngine: () => import('./toss/engine').then((engine) => engine.createTossEngine()),
     reducedMotion: prefersReducedMotion(),
     onStateChange: (state) => {
-      controls?.setLocked(state === 'flying');
+      controls?.setLocked(state === 'flying' || state === 'error');
       if (state === 'error') showEngineError();
     },
     onToss: () => controls?.hideHint(),

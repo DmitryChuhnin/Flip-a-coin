@@ -247,7 +247,8 @@ export function startGame(options: GameOptions): Game {
   setState('loading');
   options.loadEngine().then((loaded) => {
     engine = loaded;
-    prepare(current.item.body);
+    // A running swap records the fallback when it ends.
+    if (!swap) prepare(current.item.body);
     if (state === 'loading') setState('idle');
   }, fail);
 

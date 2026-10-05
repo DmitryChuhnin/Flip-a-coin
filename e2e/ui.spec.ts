@@ -104,3 +104,22 @@ test('moves the dice tray to the right edge on a landscape phone', async ({ page
   expect(tray!.x).toBeGreaterThan(915 * 0.75);
   expect(tray!.y + tray!.height).toBeLessThanOrEqual(412);
 });
+
+test('replaces the dice tray and the hint with the reload panel when the engine fails', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('flip-a-coin:settings', JSON.stringify({ tab: 'dice', die: 'd6' }));
+  });
+  await page.route('**/*.wasm', (route) => route.abort());
+  await page.goto('./');
+  await expect(body(page)).toHaveAttribute('data-toss-state', 'error', { timeout: 15_000 });
+  await expect(page.locator('#tray')).toBeHidden();
+  await expect(page.locator('#hint')).toBeHidden();
+  await expect(button(page, 'Coin')).toBeDisabled();
+  await expect(button(page, 'Sound')).toBeEnabled();
+
+  const reloaded = page.waitForEvent('load');
+  await button(page, 'Reload').click();
+  await reloaded;
+});

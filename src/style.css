@@ -53,13 +53,16 @@ body {
   display: none !important;
 }
 
-/* Controls float over the scene; only the buttons take taps, the rest goes to the canvas. */
+/* Controls float over the scene; the empty space between them passes taps to the canvas. */
 .controls {
   position: fixed;
   inset: 0;
   pointer-events: none;
 }
 
+/* The glass panels take taps too, so a near miss on a pill does not toss. */
+.controls .tabs,
+.controls .tray,
 .controls button,
 .engine-error button {
   pointer-events: auto;
@@ -280,6 +283,12 @@ body {
   text-align: center;
   font-size: 17px;
   font-weight: 700;
+}
+
+/* With the engine down there is nothing to toss or pick; the reload panel takes the tray's place. */
+body[data-toss-state='error'] .tray,
+body[data-toss-state='error'] .hint {
+  display: none !important;
 }
 
 .engine-error p {
