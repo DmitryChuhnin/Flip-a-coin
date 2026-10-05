@@ -20,15 +20,20 @@ export function shadowLook(height: number): { scale: number; opacity: number } {
 
 export interface ContactShadow {
   mesh: Mesh;
-  /** Moves the spot under the body center at `x, z`, `height` above its rest height. */
-  follow(x: number, z: number, height: number): void;
+  /** Sizes the spot for a body whose hull reaches `reach` from its center. */
+  setReach(reach: number): void;
+  /**
+   * Moves the spot under the body center at `x, z`, `height` above its rest height. `size` scales
+   * it with the body while the body grows in or shrinks away.
+   */
+  follow(x: number, z: number, height: number, size?: number): void;
 }
 
 /**
  * A radial gradient spot that stays under the body; it stands in for a shadow map, which the
  * scene does not render. It is what shows the height of the flight.
  */
-export function createContactShadow(reach: number): ContactShadow {
+export function createContactShadow(): ContactShadow {
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = 128;
   const ctx = canvas.getContext('2d');
@@ -41,9 +46,8 @@ export function createContactShadow(reach: number): ContactShadow {
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  const size = SHADOW.size * reach;
   const mesh = new Mesh(
-    new PlaneGeometry(size, size),
+    new PlaneGeometry(1, 1),
     new MeshBasicMaterial({
       map: new CanvasTexture(canvas),
       transparent: true,
@@ -59,15 +63,19 @@ export function createContactShadow(reach: number): ContactShadow {
   mesh.position.y = 0.003;
   mesh.renderOrder = 1;
   const material = mesh.material as MeshBasicMaterial;
+  let diameter = SHADOW.size;
 
   return {
     mesh,
-    follow(x, z, height) {
+    setReach(reach) {
+      diameter = SHADOW.size * reach;
+    },
+    follow(x, z, height, size = 1) {
       const { scale, opacity } = shadowLook(height);
       mesh.position.x = x;
       mesh.position.z = z;
-      mesh.scale.set(scale, scale, 1);
-      material.opacity = opacity;
+      mesh.scale.set(diameter * scale * size, diameter * scale * size, 1);
+      material.opacity = opacity * size;
     },
   };
 }

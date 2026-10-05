@@ -3,8 +3,8 @@
 A casual mobile-first browser game: a 3D coin lies on a table, and a tap tosses it. Built with
 three.js, TypeScript and Vite. The production build is served from `/flip-a-coin/`.
 
-Dice are available behind a temporary URL parameter until the game has its own selector:
-`?item=d4`, `d6`, `d8`, `d10`, `d12` or `d20`. A missing or unknown value gives the coin.
+The tabs at the top switch between the coin and the dice; the tray picks d4 to d20. The choice
+and the sound switch are kept in `localStorage`.
 
 ## Requirements
 
@@ -27,9 +27,12 @@ preview server).
 
 - `src/main.ts`: entry point; WebGL2 check, render loop, pause while the tab is hidden.
 - `src/game.ts`: toss states (`loading`, `idle`, `flying`, `result`, `error`), tap and Space/Enter
-  input, result announcement and the rolled number caption, camera moves. Exposes
-  `data-toss-state`, `data-toss-count` and `data-item` on `<body>`.
-- `src/items.ts`: the tossable items (coin and dice), the `?item=` selector, announcements.
+  input, result announcement and the rolled number caption, camera moves, the swap between
+  items. Exposes `data-toss-state`, `data-toss-count` and `data-item` on `<body>`.
+- `src/items.ts`: the tossable items (coin and dice) and their announcements.
+- `src/settings.ts`: saved settings (item tab, die, sound, first toss done), read field by field.
+- `src/ui/controls.ts`: item tabs, dice tray, sound button and the first-toss hint.
+- `src/strings.ts`: interface text, except the WebGL fallback message in `index.html`.
 - `src/scene/createScene.ts`: renderer, camera, resize handling.
 - `src/scene/studio.ts`: the lilac studio backdrop, lights and the environment map.
 - `src/scene/contactShadow.ts`: the soft spot under the body that stands in for a shadow map.

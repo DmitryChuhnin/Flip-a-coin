@@ -11,11 +11,19 @@ function collectErrors(page: Page): string[] {
 
 const body = (page: Page) => page.locator('body');
 
+/** Opens the game with settings saved by an earlier visit. */
+async function openWith(page: Page, settings: Record<string, unknown>): Promise<void> {
+  await page.addInitScript((saved) => {
+    localStorage.setItem('flip-a-coin:settings', JSON.stringify(saved));
+  }, settings);
+  await page.goto('./');
+}
+
 test('rolls a d20 on tap, ignores taps in flight, shows and announces the number', async ({
   page,
 }) => {
   const errors = collectErrors(page);
-  await page.goto('./?item=d20');
+  await openWith(page, { tab: 'dice', die: 'd20' });
 
   await expect(body(page)).toHaveAttribute('data-item', 'd20');
   await expect(body(page)).toHaveAttribute('data-toss-state', 'idle', { timeout: 15_000 });
@@ -51,7 +59,7 @@ test('rolls a d20 on tap, ignores taps in flight, shows and announces the number
 
 test('ignores a tap while the camera settles on the landed die', async ({ page }) => {
   await page.clock.install();
-  await page.goto('./?item=d6');
+  await openWith(page, { tab: 'dice', die: 'd6' });
   await expect(body(page)).toHaveAttribute('data-toss-state', 'idle', { timeout: 15_000 });
   // A paused clock advances frames only on runFor, so the tap lands within 50 ms of landing.
   await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
@@ -74,8 +82,10 @@ test('ignores a tap while the camera settles on the landed die', async ({ page }
   await expect(body(page)).toHaveAttribute('data-toss-count', '2');
 });
 
-test('falls back to the coin for an unknown item and shows no caption', async ({ page }) => {
-  await page.goto('./?item=d7');
+test('opens the coin for an unknown saved tab and shows no caption after a toss', async ({
+  page,
+}) => {
+  await openWith(page, { tab: 'die', die: 'd6' });
   await expect(body(page)).toHaveAttribute('data-item', 'coin');
   await expect(body(page)).toHaveAttribute('data-toss-state', 'idle', { timeout: 15_000 });
 
@@ -83,4 +93,9 @@ test('falls back to the coin for an unknown item and shows no caption', async ({
   await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: 10_000 });
   await expect(page.locator('#toss-result')).toHaveText(/^(Heads|Tails)$/);
   await expect(page.locator('#roll-number')).toBeHidden();
+});
+
+test('opens the d20 for an unknown saved die on the dice tab', async ({ page }) => {
+  await openWith(page, { tab: 'dice', die: 'd7' });
+  await expect(body(page)).toHaveAttribute('data-item', 'd20');
 });

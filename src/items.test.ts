@@ -1,28 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createItem, ITEM_NAMES, itemFromQuery } from './items';
-
-describe('itemFromQuery', () => {
-  it.each(ITEM_NAMES)('selects %s by name', (name) => {
-    expect(itemFromQuery(`?item=${name}`)).toBe(name);
-  });
-
-  it.each([
-    '',
-    '?',
-    '?item=',
-    '?item=d7',
-    '?item=D20',
-    '?item=d20%20',
-    '?other=d20',
-    '?item=coin1',
-  ])('falls back to the coin for %j', (search) => {
-    expect(itemFromQuery(search)).toBe('coin');
-  });
-
-  it('takes the first item parameter when repeated', () => {
-    expect(itemFromQuery('?item=d6&item=d20')).toBe('d6');
-  });
-});
+import { createItem } from './items';
 
 describe('createItem', () => {
   it('announces the coin side without a caption', () => {

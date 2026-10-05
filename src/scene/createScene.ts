@@ -17,6 +17,7 @@ export interface SceneHandle {
   scene: Scene;
   /** Adds the tossed item; its standard materials get the studio reflections. */
   addItem(item: Object3D): void;
+  removeItem(item: Object3D): void;
   start(): void;
   stop(): void;
   /** Runs before every render with the animation frame timestamp in ms. */
@@ -84,6 +85,9 @@ export function createScene(canvas: HTMLCanvasElement, onFirstFrame: () => void)
         }
       });
       scene.add(item);
+    },
+    removeItem(item) {
+      scene.remove(item);
     },
     onFrame(callback) {
       frameCallback = callback;

@@ -101,11 +101,30 @@ The environment map reflects only on the item's standard materials. Set as `scen
 three.js r186 also applies it to the Lambert floor and washes it out. The light intensities are
 in legacy light units and are written with the factor π that legacy mode applied.
 
-## The item is chosen by a temporary URL parameter
+## Settings are read field by field from localStorage
 
-`?item=d4` to `?item=d20` selects a die; a missing or unknown value gives the coin. This is a stand-in
-until the game has an in-game selector, and it reads only exact lower-case names so a typo cannot
-pick an unexpected body.
+The chosen tab, die, sound switch and whether the first toss has happened are stored under
+`flip-a-coin:settings`. `readSettings` checks each field on its own and gives the default for a
+missing or unknown value, so a stored setting from an older version keeps the fields that are
+still valid. Storage that throws or holds broken JSON gives all defaults, and a failed write is
+ignored: the game then forgets the choice on reload but works.
+
+The temporary `?item=` URL parameter that selected a die before the in-game tabs existed was
+removed with them; old links open the coin or the last saved item.
+
+## A new item replaces the old one halfway through the swap
+
+The old model shrinks for the first half of `SWAP_S`, the new one grows for the second, and the
+camera moves to the new close-up over the whole swap. The fallback flight for the new body is recorded
+when the swap ends, not when it starts: recording runs the physics for a whole flight and would
+drop frames of the swap. A toss is ignored until then; an item picked during a swap is queued,
+and only the last one picked is shown.
+
+## The game font is bundled with the build
+
+Baloo 2 at weights 700 and 800, Latin subset only, comes from `@fontsource/baloo-2` and is
+served with the game. A font from a font CDN adds a third-party request on every visit and is
+missing offline. Cyrillic text falls back to the next font in the stack.
 
 ## Prerecorded animations are not used
 
