@@ -8,9 +8,9 @@ body {
 }
 
 body {
-  /* Same color as CLEAR_COLOR in src/scene/createScene.ts. */
-  background: #1c1d1f;
-  color: #d8d8d8;
+  /* Same color as FLOOR_COLOR in src/scene/studio.ts. */
+  background: #c9b9f8;
+  color: #2b2350;
   font-family: system-ui, sans-serif;
   -webkit-tap-highlight-color: transparent;
   -webkit-user-select: none;
@@ -47,6 +47,7 @@ body {
   font-size: 4.5rem;
   font-weight: 700;
   line-height: 1;
+  text-shadow: 0 10px 30px rgb(70 50 160 / 16%);
   pointer-events: none;
 }
 

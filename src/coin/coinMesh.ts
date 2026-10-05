@@ -19,7 +19,10 @@ import {
   THICKNESS,
 } from './coinSpec';
 
-const COIN_COLOR = 0xb4b7bb;
+const BODY = { color: '#f0b23a', roughness: 0.32, metalness: 0.65 };
+/** Lighter gold on the rims and the relief, so the picture reads at a glance. */
+const RELIEF = { color: '#ffd36e', roughness: 0.25, metalness: 0.6 };
+const NOSE = { color: '#ff8a6b', roughness: 0.45, metalness: 0.2 };
 /** Small bevel that catches light on every relief edge. */
 const RELIEF_BEVEL = 0.007;
 const RIM_HEIGHT = THICKNESS / 2 - FACE_HEIGHT;
@@ -124,6 +127,7 @@ function rim(side: 1 | -1): BufferGeometry {
   return relief(ring, FACE_HEIGHT - 0.002, RIM_HEIGHT + 0.002, side);
 }
 
+/** Geometry groups in order: body, two rims, cat head, cat nose, digit. */
 export function createCoinGeometry(): BufferGeometry {
   const parts = [
     body(),
@@ -133,18 +137,15 @@ export function createCoinGeometry(): BufferGeometry {
     relief(catNose(), FACE_HEIGHT + CAT_HEIGHT - 0.002, NOSE_HEIGHT + 0.002, 1, 0.003),
     relief(digitOne(), FACE_HEIGHT - 0.002, DIGIT_HEIGHT + 0.002, -1),
   ];
-  const merged = mergeGeometries(parts);
+  const merged = mergeGeometries(parts, true);
   parts.forEach((g) => g.dispose());
   if (!merged) throw new Error('Coin geometry parts have mismatched attributes');
   return merged;
 }
 
 export function createCoinMesh(): Mesh {
-  const mesh = new Mesh(
-    createCoinGeometry(),
-    new MeshStandardMaterial({ color: COIN_COLOR, roughness: 0.6, metalness: 0.3 }),
-  );
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  return mesh;
+  const body = new MeshStandardMaterial(BODY);
+  const relief = new MeshStandardMaterial(RELIEF);
+  const nose = new MeshStandardMaterial(NOSE);
+  return new Mesh(createCoinGeometry(), [body, relief, relief, relief, nose, relief]);
 }

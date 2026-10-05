@@ -1,7 +1,9 @@
 import './style.css';
 import { startGame } from './game';
 import { createItem, itemFromQuery } from './items';
+import { createContactShadow } from './scene/contactShadow';
 import { createScene, type SceneHandle } from './scene/createScene';
+import { bodyReach } from './toss/body';
 
 // Probed on a throwaway canvas: three.js r163+ needs WebGL2, and a failed WebGLRenderer
 // constructor logs to console.error before throwing.
@@ -37,12 +39,16 @@ function startScene(canvas: HTMLCanvasElement, announcer: HTMLElement, caption: 
 
   const item = createItem(itemFromQuery(window.location.search));
   const model = item.createMesh();
-  scene.scene.add(model);
+  const reach = bodyReach(item.body.hull);
+  const shadow = createContactShadow(reach);
+  scene.addItem(model);
+  scene.scene.add(shadow.mesh);
   const game = startGame({
     canvas,
     scene,
     item,
     model,
+    shadow,
     announcer,
     caption,
     // Separate chunk: the scene shows while the physics engine downloads.

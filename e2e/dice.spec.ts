@@ -37,7 +37,7 @@ test('rolls a d20 on tap, ignores taps in flight, shows and announces the number
   await expect(caption).toHaveText(rolled);
   await expect(caption).toHaveAttribute('aria-hidden', 'true');
 
-  // Space is ignored until the camera finishes its dolly toward the die.
+  // Space is ignored until the camera settles on the landed die.
   await expect(async () => {
     await page.keyboard.press('Space');
     await expect(body(page)).toHaveAttribute('data-toss-count', '2', { timeout: 500 });
@@ -49,7 +49,7 @@ test('rolls a d20 on tap, ignores taps in flight, shows and announces the number
   expect(errors).toEqual([]);
 });
 
-test('ignores a tap while the camera dollies in after a roll', async ({ page }) => {
+test('ignores a tap while the camera settles on the landed die', async ({ page }) => {
   await page.clock.install();
   await page.goto('./?item=d6');
   await expect(body(page)).toHaveAttribute('data-toss-state', 'idle', { timeout: 15_000 });
