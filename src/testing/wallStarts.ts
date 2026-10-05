@@ -10,7 +10,6 @@ function extent<V extends string>(body: TossBody<V>, q: Quat, axis: 0 | 2): numb
 
 /** Rest poses leaning 9° with the hull touching each side wall and corner, over several yaws and faces. */
 export function wallStarts<V extends string>(body: TossBody<V>, yaws = 8): Pose[] {
-  const inset = body.launch.wallInset;
   const starts: Pose[] = [];
   for (const [sx, sz] of [
     [1, 0],
@@ -29,8 +28,8 @@ export function wallStarts<V extends string>(body: TossBody<V>, yaws = 8): Pose[
           fromTo(face.normal, [0, 1, 0]),
         ),
       );
-      const x = WALL_INNER.x - inset - extent(body, quaternion, 0);
-      const z = WALL_INNER.z - inset - extent(body, quaternion, 2);
+      const x = WALL_INNER.x - extent(body, quaternion, 0);
+      const z = WALL_INNER.z - extent(body, quaternion, 2);
       starts.push({ position: [sx * x, body.initialPose.position[1], sz * z], quaternion });
     }
   }
@@ -44,14 +43,16 @@ export function wallOvershoot<V extends string>(
   from: number,
 ): number {
   const points = hullVectors(body.hull);
-  const x = WALL_INNER.x - body.launch.wallInset;
-  const z = WALL_INNER.z - body.launch.wallInset;
   let worst = -Infinity;
   for (let i = from; i < frameCount(frames); i += 1) {
     const { position, quaternion } = framePose(frames, i);
     for (const p of points) {
       const r = rotate(quaternion, p);
-      worst = Math.max(worst, Math.abs(r[0] + position[0]) - x, Math.abs(r[2] + position[2]) - z);
+      worst = Math.max(
+        worst,
+        Math.abs(r[0] + position[0]) - WALL_INNER.x,
+        Math.abs(r[2] + position[2]) - WALL_INNER.z,
+      );
     }
   }
   return worst;

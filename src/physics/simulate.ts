@@ -23,8 +23,15 @@ export interface TossInput {
   angularVelocity: Vec3;
   /** Damping keeps a wobbling coin from rocking for many seconds. */
   angularDamping?: number;
-  /** Moves the walls inward, keeping a tall body further from the side walls. */
-  wallInset?: number;
+  /** Replaces the damping from the first table impact on; a die creeping on an edge stops sooner. */
+  landedDamping?: LandedDamping;
+  /** A body still moving after this long is reported unsettled; defaults to MAX_SIMULATED_S. */
+  maxSimulatedS?: number;
+}
+
+export interface LandedDamping {
+  angular: number;
+  linear: number;
 }
 
 export interface Contact {
@@ -48,13 +55,13 @@ export async function initPhysics(): Promise<void> {
   ready = true;
 }
 
-function addStaticBoxes(world: RAPIER.World, inset: number): RAPIER.Collider {
+function addStaticBoxes(world: RAPIER.World): RAPIER.Collider {
   const surface = (desc: RAPIER.ColliderDesc) =>
     world.createCollider(desc.setRestitution(RESTITUTION).setFriction(FRICTION));
 
   const table = surface(RAPIER.ColliderDesc.cuboid(50, 0.5, 50).setTranslation(0, -0.5, 0));
-  const x = WALL_INNER.x - inset;
-  const z = WALL_INNER.z - inset;
+  const x = WALL_INNER.x;
+  const z = WALL_INNER.z;
   const t = WALL_HALF_THICKNESS;
   const h = WALL_HALF_HEIGHT;
   surface(RAPIER.ColliderDesc.cuboid(t, h, z + 2 * t).setTranslation(x + t, h, 0));
@@ -85,7 +92,7 @@ export function simulateToss(input: TossInput): Simulation {
   const events = new RAPIER.EventQueue(true);
   try {
     world.timestep = STEP_S;
-    const table = addStaticBoxes(world, input.wallInset ?? 0);
+    const table = addStaticBoxes(world);
 
     const [px, py, pz] = input.start.position;
     const [qx, qy, qz, qw] = input.start.quaternion;
@@ -111,7 +118,7 @@ export function simulateToss(input: TossInput): Simulation {
       body,
     );
 
-    const maxSteps = Math.round(MAX_SIMULATED_S / STEP_S);
+    const maxSteps = Math.round((input.maxSimulatedS ?? MAX_SIMULATED_S) / STEP_S);
     const settleSteps = Math.round(SETTLE_S / STEP_S);
     const frames = new Float32Array((maxSteps + 1) * FRAME_STRIDE);
     const contacts: Contact[] = [];
@@ -140,6 +147,10 @@ export function simulateToss(input: TossInput): Simulation {
         const hitsTable = h1 === table.handle || h2 === table.handle;
         if (started && cleared && hitsTable && approach >= MIN_IMPACT_SPEED) {
           contacts.push({ frame: step, strength: approach });
+          if (contacts.length === 1 && input.landedDamping) {
+            body.setAngularDamping(input.landedDamping.angular);
+            body.setLinearDamping(input.landedDamping.linear);
+          }
         }
       });
 
