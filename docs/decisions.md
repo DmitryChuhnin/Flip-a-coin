@@ -133,7 +133,17 @@ and only the last one picked is shown.
 
 Baloo 2 at weights 700 and 800, Latin subset only, comes from `@fontsource/baloo-2` and is
 served with the game. A font from a font CDN adds a third-party request on every visit and is
-missing offline. Cyrillic text falls back to the next font in the stack.
+missing offline. Baloo 2 has no Cyrillic, so the stack continues with the Cyrillic subset of
+Nunito 700 (`@fontsource/nunito`), a rounded face of similar weight. The browser takes from it
+only the glyphs Baloo 2 lacks and downloads it only when such text is on screen.
+
+## The language follows the browser's first preferred language
+
+Russian when `navigator.languages[0]` is `ru` or `ru-*`, English for everything else
+(`src/strings.ts`). A Russian further down the list does not count: the first entry is what the
+reader picked for the browser itself. There is no language switch; the sound switch is the only
+setting. Unit tests pin the language to English (`src/testing/englishBrowser.ts`) because Node
+reports the machine's locale.
 
 ## The game works offline through its own service worker
 
