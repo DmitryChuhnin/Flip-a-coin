@@ -4,6 +4,9 @@ import { expect, test } from '@playwright/test';
 
 const body = (page: import('@playwright/test').Page) => page.locator('body');
 
+/** Width and height from the PNG header. */
+const pngSize = (png: Buffer) => `${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`;
+
 test('runs offline after the first visit', async ({ page, context }) => {
   await page.goto('./');
   await expect(body(page)).toHaveAttribute('data-toss-state', 'idle', { timeout: 15_000 });
@@ -25,13 +28,39 @@ test('links a manifest whose icons load', async ({ page, request }) => {
   const manifestUrl = new URL(href!, page.url());
   const manifest = await (await request.get(manifestUrl.href)).json();
   expect(manifest).toMatchObject({ display: 'standalone', start_url: './', scope: './' });
+  const game = new URL('/flip-a-coin/', page.url()).href;
+  for (const key of ['id', 'start_url', 'scope']) {
+    expect(new URL(manifest[key], manifestUrl).href).toBe(game);
+  }
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute(
+    'content',
+    manifest.theme_color,
+  );
   const sizes = manifest.icons.map((icon: { sizes: string }) => icon.sizes);
   expect(sizes).toEqual(expect.arrayContaining(['192x192', '512x512']));
+  expect(manifest.icons).toContainEqual(
+    expect.objectContaining({ sizes: '512x512', purpose: 'maskable' }),
+  );
   for (const icon of manifest.icons) {
     const response = await request.get(new URL(icon.src, manifestUrl).href);
     expect(response.ok()).toBe(true);
     expect(response.headers()['content-type']).toBe('image/png');
+    expect(pngSize(await response.body())).toBe(icon.sizes);
   }
+  const touchIcon = await page.locator('link[rel="apple-touch-icon"]').getAttribute('href');
+  const response = await request.get(new URL(touchIcon!, page.url()).href);
+  expect(response.ok()).toBe(true);
+  expect(pngSize(await response.body())).toBe('180x180');
+});
+
+test('registers the worker for the game path only', async ({ page }) => {
+  await page.goto('./');
+  const scope = await page.evaluate(() => navigator.serviceWorker.ready.then((r) => r.scope));
+  expect(scope).toBe(new URL('/flip-a-coin/', page.url()).href);
+  const scopes = await page.evaluate(() =>
+    navigator.serviceWorker.getRegistrations().then((all) => all.map((r) => r.scope)),
+  );
+  expect(scopes).toEqual([scope]);
 });
 
 test('precaches every built file except the worker itself', () => {
