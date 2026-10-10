@@ -129,6 +129,18 @@ recorded when the swap ends, not when it starts: recording runs the physics for 
 would drop frames of the swap. A toss is ignored until then; an item picked during a swap is queued,
 and only the last one picked is shown.
 
+## Double-tap zoom and text selection are off, pinch zoom is not
+
+`html` and `body` set `touch-action: manipulation`, which turns off double-tap zoom and keeps
+pinch zoom. `#scene` keeps `touch-action: none`: the toss gestures need it, and it blocks zoom on
+the scene too. The viewport has no `user-scalable=no` or `maximum-scale`: iOS Safari ignores
+both, and on Android they take pinch zoom away from players who need it.
+
+`body` turns off text selection (`user-select` with the `-webkit-` prefix for Safari) and the iOS
+long-press menu on text and images (`-webkit-touch-callout: none`). `input`, `textarea` and
+`[contenteditable]` stay selectable: Safari inherits `-webkit-user-select: none`, and a field
+that cannot be selected takes no typing. The game shows no text meant to be copied.
+
 ## The game font is bundled with the build
 
 Baloo 2 at weights 700 and 800, Latin subset only, comes from `@fontsource/baloo-2` and is
