@@ -7,6 +7,15 @@ const body = (page: import('@playwright/test').Page) => page.locator('body');
 /** Width and height from the PNG header. */
 const pngSize = (png: Buffer) => `${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`;
 
+/** The linked manifest as Chromium parsed it; `id` resolves against the origin, not the file. */
+async function parsedManifest(page: import('@playwright/test').Page) {
+  const cdp = await page.context().newCDPSession(page);
+  return {
+    ...(await cdp.send('Page.getAppManifest')),
+    ...(await cdp.send('Page.getInstallabilityErrors')),
+  };
+}
+
 /**
  * Loads the page, waits for the worker and reloads, so the page is under the worker's control.
  * WebGL is off: these tests check the worker, and the software-rendered scene only slows them.
@@ -36,16 +45,21 @@ test('runs offline after the first visit', async ({ page, context }) => {
   await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: 10_000 });
 });
 
-test('links a manifest whose icons load', async ({ page, request }) => {
+test('links an installable manifest of the game path whose icons load', async ({
+  page,
+  request,
+}) => {
   await page.goto('./');
   const href = await page.locator('link[rel="manifest"]').getAttribute('href');
   const manifestUrl = new URL(href!, page.url());
   const manifest = await (await request.get(manifestUrl.href)).json();
   expect(manifest).toMatchObject({ display: 'standalone', start_url: './', scope: './' });
+  const parsed = await parsedManifest(page);
+  expect(parsed.errors).toEqual([]);
+  expect(parsed.installabilityErrors).toEqual([]);
+  // An id at the origin root would be shared by every app on the origin.
   const game = new URL('/flip-a-coin/', page.url()).href;
-  for (const key of ['id', 'start_url', 'scope']) {
-    expect(new URL(manifest[key], manifestUrl).href).toBe(game);
-  }
+  expect(parsed.manifest).toMatchObject({ id: game, startUrl: game, scope: game });
   await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute(
     'content',
     manifest.theme_color,

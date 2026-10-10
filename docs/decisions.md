@@ -177,6 +177,14 @@ online.
 - `vite-plugin-pwa` (Workbox) would cover the same with a large dependency tree tied to Vite
   versions; precache, cleanup and the page fallback are about 75 lines here.
 
+## The manifest id is a path from the origin
+
+Both manifests set `id` to `/flip-a-coin/`, while `start_url` and `scope` are `./`. The browser
+resolves `id` against the origin of `start_url`, not against the manifest's URL, so `./` would
+give `https://microverse.space/`, the origin root shared with the other apps on the site. Apps
+with one id are one app to the browser: installing one replaces the other's name, icon and start
+URL. The id follows `base` in `vite.config.ts`.
+
 ## three.js is a chunk of its own
 
 three.js is about 550 kB minified, one module the first frame needs, so splitting it further
