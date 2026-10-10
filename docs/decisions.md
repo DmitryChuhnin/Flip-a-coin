@@ -161,6 +161,11 @@ online.
 - The page from the network is not cached. Under the old worker it belongs to the new build, and
   the old worker fetches the new build's files from the network because its cache lacks them;
   the cache stays one consistent build for offline launches.
+- Network first costs two things the cached page did not. On a slow network a launch waits for
+  the page up to `PAGE_TIMEOUT_MS`. On the first launch after a deploy the files new in that
+  build come only from the network: if one fails to download, that launch shows an empty page or
+  the engine error, and Reload goes to the network again, although the old build is complete in
+  the cache. The cached page avoided both and showed a deploy only at the launch after next.
 - A new worker does not call `skipWaiting`: it takes over once every tab of the old version is
   closed. An open old page still loads the physics chunk and the wasm lazily, and with an early
   switch neither is in the new cache nor, after a deploy, on the server.
