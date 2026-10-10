@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { serviceWorkerSource, type Precache } from './serviceWorker';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { PAGE_TIMEOUT_MS, serviceWorkerSource, type Precache } from './serviceWorker';
 
 const SCOPE = 'https://example.test/flip-a-coin/';
 const PAGE = '<script type="module" src="/flip-a-coin/assets/index-B.js"></script>';
@@ -144,17 +144,72 @@ describe('serviceWorkerSource', () => {
     expect(await worker.caches.keys()).toEqual(['flip-a-coin-b2', 'someone-else']);
   });
 
-  it('serves the cached page for any navigation in scope and cached files cache-first', async () => {
+  it('answers files cache-first and downloads only the ones it lacks', async () => {
     const worker = install(BUILD);
     await worker.run('install');
     worker.fetch.mockClear();
-    const get = (url: string, mode = 'cors') =>
-      worker.run('fetch', { request: { url, method: 'GET', mode } });
-    expect(await get(`${SCOPE}?lang=ru`, 'navigate')).toBe(PAGE);
+    const get = (url: string) =>
+      worker.run('fetch', { request: { url, method: 'GET', mode: 'cors' } });
     expect(await get(`${SCOPE}assets/three-A.js`)).toBe(`new ${SCOPE}assets/three-A.js`);
     expect(worker.fetch).not.toHaveBeenCalled();
     const missing = await get(`${SCOPE}assets/missing.js`);
     expect(await (missing as Response).text()).toBe(`new ${SCOPE}assets/missing.js`);
+  });
+
+  describe('page loads', () => {
+    const NEXT_PAGE = PAGE.replace('index-B', 'index-C');
+    const open = (worker: ReturnType<typeof install>, url = `${SCOPE}?lang=ru`) =>
+      worker.run('fetch', { request: { url, method: 'GET', mode: 'navigate' } });
+    const text = async (answer: unknown) =>
+      typeof answer === 'string' ? answer : (answer as Response).text();
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('take the page from the network, so a deploy shows at the next launch, and keep it out of the cache', async () => {
+      const worker = install(BUILD);
+      await worker.run('install');
+      worker.fetch.mockImplementation(async () => new Response(NEXT_PAGE));
+      expect(await text(await open(worker))).toBe(NEXT_PAGE);
+      expect(worker.fetch).toHaveBeenLastCalledWith(
+        expect.objectContaining({ url: `${SCOPE}?lang=ru`, mode: 'navigate' }),
+      );
+      expect(worker.caches.stores.get('flip-a-coin-b2')!.get(SCOPE)).toBe(PAGE);
+    });
+
+    it('fall back to the cached page offline, on an error status and on a redirect', async () => {
+      const worker = install(BUILD);
+      await worker.run('install');
+      worker.fetch.mockRejectedValueOnce(new TypeError('offline'));
+      expect(await open(worker)).toBe(PAGE);
+      worker.fetch.mockResolvedValueOnce(new Response('down', { status: 503 }));
+      expect(await open(worker)).toBe(PAGE);
+      const redirect = { ok: false, status: 0, type: 'opaqueredirect' } as Response;
+      worker.fetch.mockResolvedValueOnce(redirect);
+      expect(await open(worker)).toBe(PAGE);
+    });
+
+    it('fall back to the cached page when the network is silent for the timeout', async () => {
+      vi.useFakeTimers();
+      const worker = install(BUILD);
+      await worker.run('install');
+      worker.fetch.mockReturnValueOnce(new Promise(() => {}));
+      let answer: unknown = 'pending';
+      void open(worker).then((value) => (answer = value));
+      await vi.advanceTimersByTimeAsync(PAGE_TIMEOUT_MS - 1);
+      expect(answer).toBe('pending');
+      await vi.advanceTimersByTimeAsync(1);
+      expect(answer).toBe(PAGE);
+    });
+
+    it('pass the network answer through when no page is cached', async () => {
+      const worker = install(BUILD);
+      worker.fetch.mockResolvedValueOnce(new Response('missing', { status: 404 }));
+      expect(((await open(worker)) as Response).status).toBe(404);
+      worker.fetch.mockRejectedValueOnce(new TypeError('offline'));
+      await expect(open(worker)).rejects.toThrow('offline');
+    });
   });
 
   it('leaves requests outside its scope and non-GET requests to the browser', async () => {

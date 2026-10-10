@@ -7,6 +7,20 @@ const body = (page: import('@playwright/test').Page) => page.locator('body');
 /** Width and height from the PNG header. */
 const pngSize = (png: Buffer) => `${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`;
 
+/**
+ * Loads the page, waits for the worker and reloads, so the page is under the worker's control.
+ * WebGL is off: these tests check the worker, and the software-rendered scene only slows them.
+ */
+async function controlledPage(page: import('@playwright/test').Page): Promise<void> {
+  await page.addInitScript(() => {
+    HTMLCanvasElement.prototype.getContext = () => null;
+  });
+  await page.goto('./');
+  await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+  await page.reload();
+  expect(await page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
+}
+
 test('runs offline after the first visit', async ({ page, context }) => {
   await page.goto('./');
   await expect(body(page)).toHaveAttribute('data-toss-state', 'idle', { timeout: 15_000 });
@@ -61,6 +75,30 @@ test('registers the worker for the game path only', async ({ page }) => {
     navigator.serviceWorker.getRegistrations().then((all) => all.map((r) => r.scope)),
   );
   expect(scopes).toEqual([scope]);
+});
+
+test('loads the page from the network while online, so a deploy shows at the next launch', async ({
+  page,
+  context,
+}) => {
+  await controlledPage(page);
+  const next = readFileSync(join(import.meta.dirname, '..', 'dist', 'index.html'), 'utf8').replace(
+    '<body>',
+    '<body data-deploy="next">',
+  );
+  // The worker's own requests go through the context routes too.
+  await context.route('**/flip-a-coin/', (route) =>
+    route.fulfill({ contentType: 'text/html', body: next }),
+  );
+  await page.reload();
+  await expect(body(page)).toHaveAttribute('data-deploy', 'next');
+});
+
+test('opens the cached page when the server fails it', async ({ page, context }) => {
+  await controlledPage(page);
+  await context.route('**/flip-a-coin/', (route) => route.fulfill({ status: 503, body: 'down' }));
+  await page.reload();
+  await expect(page.locator('#scene')).toBeAttached();
 });
 
 test('precaches every built file except the worker itself', () => {

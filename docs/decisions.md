@@ -150,13 +150,20 @@ reports the machine's locale.
 
 The build emits `sw.js` (`serviceWorker` plugin in `vite.config.ts`, source in
 `src/pwa/serviceWorker.ts`) that lists every built and public file. Install precaches all of
-them, then requests in scope are answered from the cache first, and every page load gets the
-cached page. A page whose worker failed to register still runs online.
+them, then files in scope are answered from the cache first and a page load from the network
+first, with the cached page as the fallback. A page whose worker failed to register still runs
+online.
 
+- The page comes from the network so that a deploy shows at the next launch. Answered from the
+  cache, it showed only at the launch after that: the new worker installs in the background
+  while the old one serves the old page. Offline, on an error status or a redirect, or when the
+  network is silent for `PAGE_TIMEOUT_MS`, the cached page answers.
+- The page from the network is not cached. Under the old worker it belongs to the new build, and
+  the old worker fetches the new build's files from the network because its cache lacks them;
+  the cache stays one consistent build for offline launches.
 - A new worker does not call `skipWaiting`: it takes over once every tab of the old version is
-  closed; reloading an open tab keeps the old version. An open old page still loads the physics
-  chunk and the wasm lazily, and with an early switch neither is in the new cache nor, after a
-  deploy, on the server.
+  closed. An open old page still loads the physics chunk and the wasm lazily, and with an early
+  switch neither is in the new cache nor, after a deploy, on the server.
 - The install fails, and the old version stays, when the page at the scope URL is redirected or
   does not load this build's entry script. Chrome refuses a redirected response for a page load,
   and a stale page from a cache in front of the server would point at deleted files. The server
@@ -168,7 +175,7 @@ cached page. A page whose worker failed to register still runs online.
   Activation deletes the game's older caches and no others. Dotfiles in `public/` are not
   precached: a server that refuses them would fail every install.
 - `vite-plugin-pwa` (Workbox) would cover the same with a large dependency tree tied to Vite
-  versions; precache, cleanup and the page fallback are about 50 lines here.
+  versions; precache, cleanup and the page fallback are about 75 lines here.
 
 ## three.js is a chunk of its own
 
