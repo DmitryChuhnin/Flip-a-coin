@@ -185,6 +185,14 @@ give `https://microverse.space/`, the origin root shared with the other apps on 
 with one id are one app to the browser: installing one replaces the other's name, icon and start
 URL. The id follows `base` in `vite.config.ts`.
 
+## The maskable icon is a file of its own
+
+`icon-192.png` and `icon-512.png` are `public/icons/icon.svg` rendered without its background
+square; `icon-maskable-512.png` and `apple-touch-icon.png` keep it. Desktop browsers show the
+plain icon unmasked, and with the background it is a lilac square. Android crops the maskable
+icon to its own shape, so the square has to be filled, with the coin inside the safe zone, a
+circle of 80% of the side. iOS fills a transparent touch icon with black.
+
 ## three.js is a chunk of its own
 
 three.js is about 550 kB minified, one module the first frame needs, so splitting it further

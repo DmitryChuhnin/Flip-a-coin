@@ -7,6 +7,17 @@ const body = (page: import('@playwright/test').Page) => page.locator('body');
 /** Width and height from the PNG header. */
 const pngSize = (png: Buffer) => `${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`;
 
+/** Alpha of an image's top-left pixel, from 0 to 255. */
+const cornerAlpha = (page: import('@playwright/test').Page, src: string) =>
+  page.evaluate(async (src) => {
+    const image = new Image();
+    image.src = src;
+    await image.decode();
+    const context = new OffscreenCanvas(1, 1).getContext('2d')!;
+    context.drawImage(image, 0, 0);
+    return context.getImageData(0, 0, 1, 1).data[3];
+  }, src);
+
 /** The linked manifest as Chromium parsed it; `id` resolves against the origin, not the file. */
 async function parsedManifest(page: import('@playwright/test').Page) {
   const cdp = await page.context().newCDPSession(page);
@@ -70,10 +81,13 @@ test('links an installable manifest of the game path whose icons load', async ({
     expect.objectContaining({ sizes: '512x512', purpose: 'maskable' }),
   );
   for (const icon of manifest.icons) {
-    const response = await request.get(new URL(icon.src, manifestUrl).href);
+    const url = new URL(icon.src, manifestUrl).href;
+    const response = await request.get(url);
     expect(response.ok()).toBe(true);
     expect(response.headers()['content-type']).toBe('image/png');
     expect(pngSize(await response.body())).toBe(icon.sizes);
+    // Desktops show the plain icons unmasked, so only the maskable one fills its square.
+    expect(await cornerAlpha(page, url)).toBe(icon.purpose === 'maskable' ? 255 : 0);
   }
   const touchIcon = await page.locator('link[rel="apple-touch-icon"]').getAttribute('href');
   const response = await request.get(new URL(touchIcon!, page.url()).href);
