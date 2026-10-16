@@ -6,6 +6,9 @@ test('shows frame rate and planning time with ?perf and passes taps on the panel
   page,
 }) => {
   const errors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('./?perf');
   await expect(body(page)).toHaveAttribute('data-toss-state', 'idle', { timeout: 15_000 });
