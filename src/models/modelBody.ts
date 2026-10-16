@@ -36,10 +36,16 @@ export interface ModelBody<V extends string> {
  */
 const SNAP_TOLERANCE = 1e-3;
 /**
- * Each rotation is found from two pairs of corners, so corners pass only up to about this share;
- * measured in docs/decisions.md, "A model takes its size and launch from the procedural item".
+ * Only named in messages: each rotation is found from two pairs of corners, so corners pass only
+ * up to about this share; measured in docs/decisions.md, "A model takes its size and launch from
+ * the procedural item".
  */
 const CORNER_LIMIT = 2e-4;
+/**
+ * Aligning moves the hull's center of mass to the origin unless a direction is kept by every
+ * symmetry, as the axis of a coin's only flip; an offset along it stays and must not exceed this.
+ */
+const ORIGIN_LIMIT = 2e-4;
 /** Face normals must be unit to this, as in `defineBody`; only their directions are aligned. */
 const UNIT_TOLERANCE = 1e-6;
 /**
@@ -86,6 +92,12 @@ export function modelBody<V extends string>(
   const hull = new Float32Array(exact.flat());
   const vectors = hullVectors(hull);
   const reach = bodyReach(hull);
+  const offset = length3(hullCenter(exact)) / reach;
+  if (!(offset <= ORIGIN_LIMIT)) {
+    throw new RangeError(
+      `The model's origin is ${offset.toExponential(1)} of its size off the center of mass of its hull, more than ${ORIGIN_LIMIT.toExponential()}`,
+    );
+  }
 
   // The model starts with the same outcome up as the procedural item; a missing one fails below.
   const start = template.faces[upFace(template.initialPose.quaternion, template.faces).index]!;
@@ -383,6 +395,24 @@ function faceVertices(face: HullFace): Vector3[] {
     edge = edge.next;
   } while (edge !== face.edge);
   return vertices;
+}
+
+/** Center of mass of the convex hull of the points at even density. */
+function hullCenter(points: readonly Vec3[]): Vec3 {
+  const hull = new ConvexHull().setFromPoints(points.map((p) => new Vector3(...p)));
+  let volume = 0;
+  let moment: Vec3 = [0, 0, 0];
+  for (const face of hull.faces) {
+    const [a, ...rest] = faceVertices(face).map((v): Vec3 => [v.x, v.y, v.z]);
+    // Tetrahedra from the origin to a fan of the side, signed: the origin may lie outside.
+    for (let i = 0; i + 1 < rest.length; i++) {
+      const [b, c] = [rest[i]!, rest[i + 1]!];
+      const v = dot3(a!, cross(b, c)) / 6;
+      volume += v;
+      moment = add(moment, scaled3(add(add(a!, b), c), v / 4));
+    }
+  }
+  return scaled3(moment, 1 / volume);
 }
 
 function farthest(points: readonly Vec3[], distance: (p: Vec3) => number): Vec3 {
