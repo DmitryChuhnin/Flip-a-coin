@@ -12,10 +12,13 @@ export interface Precache {
 /** Prefix of every cache this game owns; activation deletes the others with it. */
 export const CACHE_PREFIX = 'flip-a-coin-';
 
+/** How long a page load waits for the network before the cached page answers. */
+export const PAGE_TIMEOUT_MS = 3000;
+
 /**
- * Source of `sw.js`. It precaches the whole build on install and answers cache-first, every page
- * load with the cached `./`, so the game runs offline after the first visit. Paths are relative to
- * the worker's scope.
+ * Source of `sw.js`. It precaches the whole build on install, answers files cache-first and page
+ * loads network-first with the cached `./` as the fallback, so the game runs offline after the
+ * first visit. Paths are relative to the worker's scope.
  */
 export function serviceWorkerSource({ cacheName, entry, hashed, fresh }: Precache): string {
   return `const CACHE = ${JSON.stringify(cacheName)};
@@ -23,6 +26,7 @@ const PREFIX = ${JSON.stringify(CACHE_PREFIX)};
 const ENTRY = ${JSON.stringify(entry)};
 const HASHED = ${JSON.stringify(hashed)};
 const FRESH = ${JSON.stringify(fresh)};
+const PAGE_TIMEOUT_MS = ${PAGE_TIMEOUT_MS};
 const scope = self.registration.scope;
 const at = (path) => new URL(path, scope).href;
 
@@ -63,14 +67,32 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Network first, so a deploy shows at the next launch. Offline, on an error status or a redirect,
+// or after PAGE_TIMEOUT_MS the cached page answers. The network page is not cached: it may belong
+// to a newer build whose files this cache lacks.
+async function answerPage(request) {
+  const network = fetch(request);
+  network.catch(() => {});
+  let timer;
+  const timeout = new Promise((resolve) => (timer = setTimeout(resolve, PAGE_TIMEOUT_MS)));
+  const response = await Promise.race([network, timeout]).catch(() => undefined);
+  clearTimeout(timer);
+  if (response && response.ok) return response;
+  const cached = await caches.open(CACHE).then((cache) => cache.match(scope));
+  return cached || network;
+}
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET' || !request.url.startsWith(scope)) return;
-  const key = request.mode === 'navigate' ? scope : request.url;
+  if (request.mode === 'navigate') {
+    event.respondWith(answerPage(request));
+    return;
+  }
   event.respondWith(
     caches
       .open(CACHE)
-      .then((cache) => cache.match(key))
+      .then((cache) => cache.match(request.url))
       .then((hit) => hit || fetch(request)),
   );
 });

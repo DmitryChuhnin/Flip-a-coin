@@ -26,8 +26,17 @@ body {
   color: var(--ink);
   font-family: var(--font-game);
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+}
+
+/* Safari inherits -webkit-user-select: none, and a field that cannot be selected takes no typing. */
+input,
+textarea,
+[contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 #scene {

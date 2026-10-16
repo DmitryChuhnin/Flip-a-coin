@@ -44,7 +44,12 @@ test.describe('in a Russian browser', () => {
     );
     const href = await page.locator('link[rel="manifest"]').getAttribute('href');
     const manifest = await (await request.get(new URL(href!, page.url()).href)).json();
-    expect(manifest).toMatchObject({ lang: 'ru', short_name: 'Монетка', id: './' });
+    expect(manifest).toMatchObject({ lang: 'ru', short_name: 'Монетка' });
+    // The same id as the English manifest, as Chromium resolves it, so both name one app.
+    const cdp = await page.context().newCDPSession(page);
+    const parsed = await cdp.send('Page.getAppManifest');
+    expect(parsed.url).toMatch(/\/manifest\.ru\.webmanifest$/);
+    expect(parsed.manifest.id).toBe(new URL('/flip-a-coin/', page.url()).href);
   });
 
   test('explains a missing WebGL in Russian', async ({ page }) => {
