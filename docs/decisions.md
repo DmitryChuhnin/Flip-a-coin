@@ -314,3 +314,37 @@ one second.
 tests but gzips poorly. A build-only plugin in `vite.config.ts` moves the blob into a `.wasm` asset
 that the same `init()` fetches. The build fails if a Rapier update moves the entry file or changes the inlined call.
 The physics chunk is loaded with a dynamic import, so the scene renders before it arrives.
+
+## A model takes its size and launch from the procedural item
+
+`modelBody` (`src/models/`) checks a model against the procedural item of the same name, which
+it would replace. A model file is in meters and the game is not (see "Physics world scale"), and
+the launch profiles, the close-up camera and the walls are tuned to the procedural sizes, so the
+model is scaled until its reach matches the procedural one. Density, launch profiles and the
+touchdown height on an edge come from the procedural item; the height lying on a face comes from
+the model's hull. The model starts with the same outcome up, without the turn about the vertical
+that a procedural die gets for reading its number: where a model prints it is not known.
+
+A model without a `faces` property is rejected rather than given faces from its geometry with
+values in order: those values would announce a number other than the one printed on the model.
+The model's symmetries are found on the corners of its hull with the tolerance `defineBody`
+checks the hull with, 1e-5 of the reach. The normal check, 1e-6, binds first: a rotation found on
+the corners carries their error, and on every procedural item corners moved by 3e-7 of the reach
+in random directions pass while 1e-6 fails (measured 2026-10-16). Corners are the hull points
+where three sides meet, hull triangles turned less than 1e-3 rad from each other making one side,
+so an engraved number does not break the symmetry. Their number is capped at 256: matching
+corners costs the square of their count per rotation, and 1538 corners took 0.9 s in Node. With
+its starting outcome up the model must rest on a flat side with its center of mass above it. Face
+directions that point at corners pass the symmetry checks (an octahedron with a cube's six
+directions), and so does a coin sheared until its center of mass is beyond its base; no toss
+rests with either up, and recording the item's fallback toss fails.
+
+Normals are read in the glTF scene's frame, not converted from Blender's: the file does not say
+what wrote it, and on a d6 or d8 normals turned by the Z-up swap pass every check while naming
+the wrong sides. A file that does not parse rejects with an `Error` that has the loader's error
+as its cause, since the loader throws RangeErrors of its own on a truncated file.
+
+Nothing imports the loader yet. The service worker precaches every file of the build, lazily
+loaded chunks too, so a loader chunk without model files would only add a download for every
+player. Once it is imported, the `three` chunk group in `vite.config.ts` has to leave out
+`three/examples/`, which it matches now, or GLTFLoader lands in the chunk the first frame needs.

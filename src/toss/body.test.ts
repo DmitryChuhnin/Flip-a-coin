@@ -112,7 +112,8 @@ describe('defineBody', () => {
       }),
       /rest flat/,
     ],
-  ])('rejects %s', (_, change, message) => {
+  ])('rejects %s with a RangeError', (_, change, message) => {
+    expect(() => defineBody(change(D20))).toThrow(RangeError);
     expect(() => defineBody(change(D20))).toThrow(message);
   });
 });
