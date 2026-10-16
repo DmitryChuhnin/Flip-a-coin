@@ -241,6 +241,9 @@ Without the parameter it costs about 1 kB gzipped (measured 2026-10-16) and runs
   own as `tap frame`. The end of the handler, not the next frame, closes the tap: Chromium
   stamps a frame with its vsync time even when it runs after the handler, and skips the vsync
   the handler overran, so the first frames after a tap look on time and the delay shows later.
+  The tap frame thus counts whole vsync periods: a handler that ends between a vsync and that
+  frame's callback adds a period, also when no frame was dropped. Closing the tap on the
+  callback's time instead would hide a plan that delays a frame by less than a period.
 - `prepare` shows only the first call per body: the engine records a body's fallbacks once, and
   a later call for an item switched back to returns at once.
 

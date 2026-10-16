@@ -24,7 +24,12 @@ function host() {
     }
   };
   const advance = (ms: number) => (nowMs += ms);
-  return { overlay, frames, advance };
+  const stamp = (stampMs: number) => {
+    const callback = next!;
+    next = null;
+    callback(stampMs);
+  };
+  return { overlay, frames, advance, stamp };
 }
 
 const panel = () => document.getElementById('perf')!;
@@ -179,7 +184,7 @@ describe('startPerfOverlay', () => {
     expect(panel().textContent).toContain('last flight 63 fps, worst 16 ms, slow 0/1');
   });
 
-  it('drops a tap whose flight ended before its frame came', async () => {
+  it('shows no tap frame for a flight that ended before its frame came', async () => {
     const { overlay, advance, frames } = host();
     frames(16);
     advance(20);
@@ -194,7 +199,36 @@ describe('startPerfOverlay', () => {
     await handlerEnd();
     frames(16, REFRESH_MS);
     expect(panel().textContent).toContain('last flight -');
+    expect(panel().textContent).toContain('tap frame -');
+  });
+
+  it('reads the end of the tap handler after the handler returns', async () => {
+    const { overlay, advance, frames } = host();
+    frames(16);
+    advance(20);
+    overlay.onState('flying');
+    // The rest of the handler, such as the launch sound, runs after the state change.
+    advance(30);
+    await handlerEnd();
+    frames(20, 20, 16);
+    overlay.onState('result');
+    frames(REFRESH_MS);
     expect(panel().textContent).toContain('tap frame 40 ms');
+    expect(panel().textContent).toContain('last flight 63 fps, worst 16 ms, slow 0/1');
+  });
+
+  it('skips an infinite stamp, which closes no tap and keeps the panel refreshing', async () => {
+    const { overlay, advance, frames, stamp } = host();
+    frames(16);
+    advance(20);
+    overlay.onState('flying');
+    await handlerEnd();
+    stamp(Infinity);
+    frames(40, 16);
+    overlay.onState('result');
+    frames(REFRESH_MS);
+    expect(panel().textContent).toContain('tap frame 40 ms');
+    expect(panel().textContent).toContain('last flight 63 fps, worst 16 ms, slow 0/1');
   });
 
   const setHidden = (hidden: boolean) => {
