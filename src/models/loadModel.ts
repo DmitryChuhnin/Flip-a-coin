@@ -32,7 +32,8 @@ export async function loadModel<V extends string>(
   const faces = [scene, collider, visual]
     .map((node) => node?.userData.faces as unknown)
     .find((value) => value !== undefined);
-  const { body, scale } = modelBody({ points: meshPoints(collider ?? visual), faces }, template);
+  const points = collider ? meshPoints(collider, visual) : meshPoints(visual);
+  const { body, scale } = modelBody({ points, faces }, template);
 
   visual.matrixWorld.decompose(visual.position, visual.quaternion, visual.scale);
   visual.removeFromParent();
@@ -43,17 +44,19 @@ export async function loadModel<V extends string>(
   return { visual: root, body };
 }
 
-/** Points of every mesh under `node`, in the scene's frame. */
-function meshPoints(node: Object3D): Vec3[] {
+/** Points of every mesh under `node` outside `skip`, such as a visual nested in the collider. */
+function meshPoints(node: Object3D, skip?: Object3D): Vec3[] {
   const points: Vec3[] = [];
   const point = new Vector3();
-  node.traverse((object) => {
+  const visit = (object: Object3D) => {
+    if (object === skip) return;
     const position = (object as { geometry?: BufferGeometry }).geometry?.getAttribute('position');
-    if (!position) return;
-    for (let i = 0; i < position.count; i++) {
-      point.fromBufferAttribute(position, i).applyMatrix4(object.matrixWorld);
+    for (let i = 0; i < (position?.count ?? 0); i++) {
+      point.fromBufferAttribute(position!, i).applyMatrix4(object.matrixWorld);
       points.push([point.x, point.y, point.z]);
     }
-  });
+    object.children.forEach(visit);
+  };
+  visit(node);
   return points;
 }
