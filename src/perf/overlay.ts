@@ -64,6 +64,9 @@ export function startPerfOverlay({ document, now, requestFrame }: PerfHost): Per
   }
 
   function tick(nowMs: number): void {
+    requestFrame(tick);
+    // An infinite stamp would close the tap and stop the refresh for good.
+    if (!Number.isFinite(nowMs)) return;
     const intervalMs = meter.frame(nowMs);
     if (tap) {
       if (intervalMs !== null && tap.ms !== null) tap.ms += intervalMs;
@@ -78,7 +81,6 @@ export function startPerfOverlay({ document, now, requestFrame }: PerfHost): Per
       shownAtMs = nowMs;
       render();
     }
-    requestFrame(tick);
   }
 
   function measure<R>(run: () => R, report: (ms: number) => void): R {
