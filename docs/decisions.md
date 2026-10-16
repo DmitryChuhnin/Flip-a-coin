@@ -172,8 +172,10 @@ online.
   network is silent for `PAGE_TIMEOUT_MS`, the cached page answers.
 - The page request asks the server every time: the second argument to `fetch` sets
   `cache: 'no-cache'`, whatever cache mode the launch came with. In the launch's own mode a page
-  served with `Last-Modified` and without `Expires`, `Cache-Control: max-age` or `no-cache` counts
-  as fresh by heuristic; `Cache-Control: public` alone does not rule that out. Chromium sets the
+  served with `Last-Modified` counts as fresh by heuristic unless the response has
+  `Pragma: no-cache`, an `Expires` that is a date or `0`, or `Cache-Control` with `max-age`,
+  `no-cache`, `no-store` or `must-revalidate`; `Cache-Control: public` alone does not rule that
+  out, nor does an `Expires` Chromium cannot parse. Chromium sets the
   lifetime once per response, to a tenth of the gap between its `Date` and `Last-Modified`;
   within it the HTTP cache answers without a request, and a deploy shows only at the launch after
   next, as from the worker's cache. With `no-cache` an unchanged page costs one request answered
