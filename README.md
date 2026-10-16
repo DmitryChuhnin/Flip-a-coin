@@ -56,11 +56,16 @@ The server must:
   Unless a file has `no-cache`, `no-store` or `private`, such a cache answers without asking the
   server while the file is fresh to it: for its `s-maxage`, which the cache takes before
   `max-age`, else for its `max-age`, else until its `Expires` date, else for the cache's own
-  default lifetime. Where the cache reads a field meant for it alone, such as `CDN-Cache-Control`
-  or `Surrogate-Control`, that field takes the place of `Cache-Control` and `Expires`. A setting
+  default lifetime. Where the cache reads a field meant for CDNs, such as `CDN-Cache-Control`,
+  which every CDN on the path may read, or `Surrogate-Control`, that field takes the place of
+  `Cache-Control` and `Expires`, their `no-cache`, `no-store` and `private` included (RFC 9213
+  for `CDN-Cache-Control`), though Fastly's VCL boilerplate still passes a file whose
+  `Cache-Control` has `private`. A setting
   of the cache itself can override them all: a CloudFront minimum TTL above zero, or a Cloudflare
   edge TTL that ignores `Cache-Control`, keeps the file despite `no-cache`, `no-store` or
-  `private`. Turn such a setting off for these files, or purge them. The
+  `private`. Turn such a setting off for these files, or purge them. Fastly's VCL services ignore
+  `no-cache`: they keep a file without `max-age`, `s-maxage` or `Surrogate-Control: max-age` for
+  their fallback TTL, so behind them send these files with `private` too, or purge them. The
   worker's install bypasses only the browser's own cache. The install checks that the page
   loads its own build's entry script, so a stale `sw.js` with a fresh page, or a stale page with
   a fresh `sw.js`, fails it: a new player gets no offline play. A returning player's browser sees
@@ -77,8 +82,9 @@ The server must:
   often keep their size from build to build: a deploy that gives every build the same
   modification times (an archive or an image with fixed timestamps) keeps both validators. The
   requests then get 304: players stay on the previous build, a CDN gives its page to new players
-  too and an old manifest or icon to the install. `rsync -a` from such a build skips a file of
-  the same size, so the server itself keeps the previous page, `sw.js` or public file. Once the
+  too and an old manifest or icon to the install. `rsync -a` from such a build skips a file whose
+  size and modification time match the server's copy, so the server itself keeps the previous
+  page, `sw.js` or public file. Once the
   server drops the previous build's `assets/`, a player who does not have them in the worker's
   cache gets an empty page;
 - put a new build in place in this order: `assets/` and the public files, then the page, then
