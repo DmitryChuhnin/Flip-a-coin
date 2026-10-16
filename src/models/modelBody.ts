@@ -42,13 +42,14 @@ export function modelBody<V extends string>(
   const faces = readFaces(shape.faces, template.faces);
   const { points } = shape;
   if (points.length < 4 || !points.every((p) => p.every(Number.isFinite))) {
-    throw new RangeError('The collider needs at least four finite points');
+    throw new RangeError('The model needs at least four finite points');
   }
-  const modelReach = Math.max(...points.map(length3));
-  if (!(modelReach > 0)) throw new RangeError('The collider has no size');
+  // A visual can have more points than a spread call takes as arguments.
+  const modelReach = points.reduce((max, p) => Math.max(max, length3(p)), 0);
+  if (!(modelReach > 0)) throw new RangeError('The model has no size');
   const corners = hullCorners(points, PLANE_TOLERANCE * modelReach);
   if (corners.length > MAX_CORNERS) {
-    throw new RangeError(`The collider has ${corners.length} corners, more than ${MAX_CORNERS}`);
+    throw new RangeError(`The model has ${corners.length} corners, more than ${MAX_CORNERS}`);
   }
   const scale = bodyReach(template.hull) / modelReach;
   const hull = new Float32Array(corners.flatMap((p) => p.map((v) => v * scale)));
@@ -135,11 +136,11 @@ function hullCorners(points: readonly Vec3[], tolerance: number): Vec3[] {
   const c = farthest(points, (p) => length3(cross(along, sub(p, a))));
   const normal = cross(along, sub(c, a));
   if (!(length3(normal) > tolerance * length3(along))) {
-    throw new RangeError('The collider points lie on one line');
+    throw new RangeError('The model points lie on one line');
   }
   const d = farthest(points, (p) => Math.abs(dot3(normal, sub(p, a))));
   if (!(Math.abs(dot3(normal, sub(d, a))) > tolerance * length3(normal))) {
-    throw new RangeError('The collider is flat');
+    throw new RangeError('The model is flat');
   }
 
   const hull = new ConvexHull().setFromPoints(points.map((p) => new Vector3(...p)));

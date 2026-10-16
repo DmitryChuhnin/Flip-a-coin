@@ -149,6 +149,16 @@ describe('modelBody', () => {
     );
   });
 
+  it('takes a visual of 200,000 points, more than a call takes as arguments', () => {
+    const inside = Array.from({ length: 200_000 }, (_, i): Vec3 => [
+      ((i % 7) - 3) / 1000,
+      ((i % 11) - 5) / 1000,
+      ((i % 13) - 6) / 1000,
+    ]);
+    const { body } = modelBody({ points: [...CUBE, ...inside], faces: AXIS_FACES }, D6);
+    expect(body.symmetries).toHaveLength(24);
+  });
+
   it('ignores the scale of the file: a cube of any size gets the d6 reach', () => {
     const big = CUBE.map((p): Vec3 => [p[0] * 1000, p[1] * 1000, p[2] * 1000]);
     const small = modelBody({ points: CUBE, faces: AXIS_FACES }, D6);
