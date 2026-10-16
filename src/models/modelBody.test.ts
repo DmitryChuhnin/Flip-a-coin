@@ -308,6 +308,13 @@ describe('modelBody', () => {
     );
   });
 
+  it('rejects a kite-shaped coin with its origin outside its hull, 2/3 of the reach off its center of mass', () => {
+    const { faces } = asModel(COIN_BODY);
+    expect(() => modelBody({ points: kite(3), faces }, COIN_BODY)).toThrow(
+      /The model's origin is 6\.7e-1 of its size off the center of mass of its hull/,
+    );
+  });
+
   it('accepts a kite-shaped coin with its origin 1e-4 of the reach off its center of mass either way along its flip axis and rejects one 3e-4 off', () => {
     const { faces } = asModel(COIN_BODY);
     const reach = Math.max(...kite(1 / 3).map(length3));
