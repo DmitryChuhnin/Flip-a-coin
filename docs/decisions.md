@@ -204,6 +204,19 @@ online.
 - `vite-plugin-pwa` (Workbox) would cover the same with a large dependency tree tied to Vite
   versions; precache, cleanup and the page fallback are about 75 lines here.
 
+## The `?perf` panel ships in the production build
+
+`?perf` on the page URL adds a panel with the frame rate and the toss planning time
+(`src/perf/`). The 60 fps target is checked on a phone against the deployed game, where DevTools
+need a cable and a desktop browser; behind `import.meta.env.DEV` the panel would not exist there.
+Without the parameter it costs about 0.8 kB gzipped and runs nothing.
+
+- The panel counts the intervals between its own animation frames, which is what the player
+  sees, not the time a render call takes.
+- A hidden tab clears the last frame, so the pause does not count as one long frame.
+- The flight numbers run from `flying` to the next state; their first frame includes the plan,
+  which runs in the tap handler.
+
 ## The manifest id is a path from the origin
 
 Both manifests set `id` to `/flip-a-coin/`, while `start_url` and `scope` are `./`. The browser

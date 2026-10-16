@@ -314,6 +314,23 @@ body[data-toss-state='error'] .hint {
   font-weight: 700;
 }
 
+/* The ?perf panel under the top bar; taps pass through it to the table. */
+#perf {
+  position: fixed;
+  top: calc(var(--top) + 60px);
+  left: max(8px, env(safe-area-inset-left));
+  margin: 0;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgb(0 0 0 / 55%);
+  color: #fff;
+  font:
+    11px/1.35 ui-monospace,
+    Menlo,
+    monospace;
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .knob,
   .tab,
