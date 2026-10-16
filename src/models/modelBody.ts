@@ -31,8 +31,8 @@ export interface ModelBody<V extends string> {
 }
 
 /**
- * Rotations that map the corners and the face directions onto themselves to this share of the
- * reach count as symmetries, and both are made exactly symmetric. Mesh tools round positions.
+ * Rotations that map the corners onto themselves to this share of the reach count as symmetries and
+ * must map the face directions onto each other to it; both are then made exactly symmetric.
  */
 const SNAP_TOLERANCE = 1e-3;
 /** Face normals must be unit to this, as in `defineBody`; only their directions are aligned. */
@@ -196,7 +196,7 @@ function symmetrize<V extends string>(
   const missing = faces.find((_, v) => !orbit.has(v));
   if (missing) {
     throw new RangeError(
-      `No rotation that maps the model onto itself to ${tolerance} of its size carries the face of ${faces[0]!.value} onto the face of ${missing.value}`,
+      `No rotation of the model carries the face of ${faces[0]!.value} onto the face of ${missing.value}; its corners may be too far off their symmetric places`,
     );
   }
   const aligned = faces.map((face, v) => {

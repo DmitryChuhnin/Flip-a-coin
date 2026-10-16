@@ -329,23 +329,26 @@ that a procedural die gets for reading its number: where a model prints it is no
 
 A model without a `faces` property is rejected rather than given faces from its geometry with
 values in order: those values would announce a number other than the one printed on the model.
-The model's symmetries are the rotations that map the corners of its hull onto each other and the
-normals onto each other to 1e-3 of the reach. Each is averaged with the products that should equal
-it until they form an exact group, and the corners and normals are averaged over the group, so
-`defineBody` gets an exactly symmetric body and keeps its own tolerances. Without this the normal
-check, 1e-6, bound first: a rotation found on the corners carried their error, corners off by 1e-6
-of the reach failed, and so did a d20 made from Blender's Ico Sphere, whose vertex table is rounded
-to three decimals of 200, up to 1.4e-5 of the radius. Now corners moved by 1e-4 of the reach in
-random directions pass on every procedural item, also with normals computed from the moved mesh, and
-1e-3 fails (measured 2026-10-17). Points closer together than 1e-5 of the reach are merged first:
-split vertices a little apart would be corners closer together than 2e-3 of the reach, which are
-rejected, as rotations found to 1e-3 could take one for the other. Corners are the hull points where
-three sides meet, hull triangles turned less than 1e-3 rad from each other making one side, so an
-engraved number does not break the symmetry. Their number is capped at 256: finding and checking the
-rotations costs the square of the corner count per rotation, and a round coin of 256 corners and 256
-rotations takes 0.35 s in Node (2026-10-17). Grouping the triangles into sides costs the triangle
-count times the side count, 37 s for a smooth mesh of 60,000 points, so it stops at 508 sides, the
-most that 256 corners allow.
+The model's symmetries are the rotations that map the corners of its hull onto each other to 1e-3 of
+the reach; each must also map the normals onto each other to 1e-3. Each is averaged with the
+products that should equal it until they form an exact group, and the corners and normals are
+averaged over the group, so `defineBody` gets an exactly symmetric body and keeps its own
+tolerances. Without this the normal check, 1e-6, bound first: a rotation found on the corners
+carried their error, corners off by 1e-6 of the reach failed, and so did a d20 made from Blender's
+Ico Sphere, whose vertex table is rounded to three decimals of 200, up to 1.4e-5 of the radius.
+`rotationGroup` still builds each rotation from two pairs of corners, so it carries the error of
+four: corners moved by 1e-4 of the reach in random directions pass on every procedural item, also
+with normals computed from the moved mesh, at 3e-4 some meshes of every item fail, and at 1e-3 all
+do (measured 2026-10-17). Fitting each rotation to all its corners would move that limit toward
+1e-3; the measured one already passes the rounding of mesh tools. Points closer together than 1e-5
+of the reach are merged first: split vertices a little apart would be corners closer together than
+2e-3 of the reach, which are rejected, as rotations found to 1e-3 could take one for the other.
+Corners are the hull points where three sides meet, hull triangles turned less than 1e-3 rad from
+each other making one side, so an engraved number does not break the symmetry. Their number is
+capped at 256: finding and checking the rotations costs the square of the corner count per rotation,
+and a round coin of 256 corners and 256 rotations takes 0.35 s in Node (2026-10-17). Grouping the
+triangles into sides costs the triangle count times the side count, 37 s for a smooth mesh of 60,000
+points, so it stops at 508 sides, the most that 256 corners allow.
 
 Averaging keeps a side flat only where a symmetry turns it in place, and none turns a side of the
 d10, so the rest check counts the hull points within 1e-3 of the reach of the lowest one as the

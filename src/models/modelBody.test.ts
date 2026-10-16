@@ -1,3 +1,5 @@
+import { Vector3 } from 'three';
+import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js';
 import { describe, expect, it } from 'vitest';
 import { COIN_BODY } from '../coin/coinSpec';
 import { createDie, DIE_KINDS } from '../dice/dieSpec';
@@ -129,19 +131,29 @@ describe('modelBody', () => {
   });
 
   it.each(ITEMS)(
-    'makes the %s with corners off by 1e-4 of the reach and normals by 2e-4 exactly symmetric',
-    (_, template) => {
-      const { points } = asModel(template);
-      const turned = jitter(
-        template.faces.map((face) => face.normal),
-        2e-4,
-      ).map((n) => n.map((v) => v / length3(n)));
-      const shape = {
-        points: jitter(points, 1e-4),
-        faces: template.faces.map((face, i) => ({ value: face.value, normal: turned[i] })),
+    'makes the %s with corners off by 1e-4 of the reach and normals taken from them exactly symmetric',
+    (name, template) => {
+      const points = jitter(asModel(template).points, 1e-4);
+      const hull = new ConvexHull().setFromPoints(points.map((p) => new Vector3(...p)));
+      // The area-weighted normal of the hull triangles that make up the side facing `n`.
+      const side = (n: Vec3): Vec3 => {
+        const sum = new Vector3();
+        for (const face of hull.faces) {
+          if (face.normal.dot(new Vector3(...n)) > Math.cos(0.05)) {
+            sum.addScaledVector(face.normal, face.area);
+          }
+        }
+        sum.normalize();
+        return [sum.x, sum.y, sum.z];
       };
-      expect(shape.faces[0]!.normal).not.toEqual(template.faces[0]!.normal);
-      const { body } = modelBody(shape, template);
+      // A d4 outcome is a vertex, which points away from the side across from it.
+      const flip = (n: Vec3): Vec3 => [-n[0], -n[1], -n[2]];
+      const faces = template.faces.map((face) => ({
+        value: face.value,
+        normal: name === 'd4' ? flip(side(flip(face.normal))) : side(face.normal),
+      }));
+      expect(faces[0]!.normal).not.toEqual(template.faces[0]!.normal);
+      const { body } = modelBody({ points, faces }, template);
       expect(body.symmetries).toHaveLength(template.symmetries.length);
       const error = symmetryError(body);
       expect(error.hull).toBeLessThan(1e-6);
@@ -154,7 +166,7 @@ describe('modelBody', () => {
     const points = jitter(model.points, 1e-3);
     expect(() => modelBody({ ...model, points }, template)).toThrow(RangeError);
     expect(() => modelBody({ ...model, points }, template)).toThrow(
-      /No rotation that maps the model onto itself to 1e-3 of its size carries the face of/,
+      /No rotation of the model carries the face of .+; its corners may be too far off/,
     );
   });
 
@@ -435,7 +447,7 @@ describe('modelBody', () => {
     [
       'a collider with one corner moved',
       { points: [[0.011, 0.01, 0.01], ...CUBE.slice(0, 7)], faces: AXIS_FACES },
-      /No rotation that maps the model onto itself to 1e-3 of its size carries the face of 1/,
+      /No rotation of the model carries the face of 1 onto/,
     ],
     [
       'a corner off by 8.7e-4 of the reach, which some symmetries match and others do not',
@@ -460,7 +472,7 @@ describe('modelBody', () => {
     [
       'a collider whose origin is off the center',
       { points: CUBE.map((p): Vec3 => [p[0] + 0.005, p[1], p[2]]), faces: AXIS_FACES },
-      /No rotation that maps the model onto itself to 1e-3 of its size carries the face of 1/,
+      /No rotation of the model carries the face of 1 onto/,
     ],
   ])('rejects %s with a RangeError', (_, shape, message) => {
     expect(() => modelBody(shape, D6)).toThrow(RangeError);
