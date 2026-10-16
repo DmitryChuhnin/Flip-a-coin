@@ -7,6 +7,7 @@ const PAGE = '<script type="module" src="/flip-a-coin/assets/index-B.js"></scrip
 interface Download {
   url: string;
   cache: RequestCache | undefined;
+  redirect: RequestRedirect | undefined;
 }
 
 /** A server: the page, then any other path as `new <url>`; `redirect` and `fail` per URL. */
@@ -14,9 +15,11 @@ function server(page = PAGE, { redirect = '', fail = '' } = {}) {
   const downloads: Download[] = [];
   const get = async (input: string | Request, init?: RequestInit): Promise<Response> => {
     const url = typeof input === 'string' ? input : input.url;
+    const request = typeof input === 'string' ? undefined : input;
     downloads.push({
       url,
-      cache: init?.cache ?? (typeof input === 'string' ? undefined : input.cache),
+      cache: init?.cache ?? request?.cache,
+      redirect: init?.redirect ?? request?.redirect,
     });
     if (url === fail) throw new TypeError('offline');
     const response = new Response(url === SCOPE ? page : `new ${url}`);
@@ -161,8 +164,12 @@ describe('serviceWorkerSource', () => {
 
   describe('page loads', () => {
     const NEXT_PAGE = PAGE.replace('index-B', 'index-C');
-    const open = (worker: ReturnType<typeof install>, url = `${SCOPE}?lang=ru`) =>
-      worker.run('fetch', { request: { url, method: 'GET', mode: 'navigate', cache: 'default' } });
+    const navigation = { method: 'GET', mode: 'navigate', redirect: 'manual' };
+    const open = (
+      worker: ReturnType<typeof install>,
+      url = `${SCOPE}?lang=ru`,
+      cache = 'default',
+    ) => worker.run('fetch', { request: { ...navigation, url, cache } });
     const text = async (answer: unknown) =>
       typeof answer === 'string' ? answer : (answer as Response).text();
 
@@ -182,15 +189,18 @@ describe('serviceWorkerSource', () => {
       expect(worker.caches.stores.get('flip-a-coin-b2')!.get(SCOPE)).toBe(PAGE);
     });
 
-    it('request the page in cache mode no-cache, so the HTTP cache revalidates even a copy it deems fresh', async () => {
-      const worker = install(BUILD);
-      await worker.run('install');
-      const before = worker.downloads.length;
-      await open(worker);
-      expect(worker.downloads.slice(before)).toEqual([
-        { url: `${SCOPE}?lang=ru`, cache: 'no-cache' },
-      ]);
-    });
+    it.each(['default', 'no-cache', 'reload', 'force-cache'])(
+      'request the page in cache mode no-cache whatever the launch asked (%s), keeping redirects manual',
+      async (cache) => {
+        const worker = install(BUILD);
+        await worker.run('install');
+        const before = worker.downloads.length;
+        await open(worker, `${SCOPE}?lang=ru`, cache);
+        expect(worker.downloads.slice(before)).toEqual([
+          { url: `${SCOPE}?lang=ru`, cache: 'no-cache', redirect: 'manual' },
+        ]);
+      },
+    );
 
     it('fall back to the cached page offline, on an error status and on a redirect', async () => {
       const worker = install(BUILD);
