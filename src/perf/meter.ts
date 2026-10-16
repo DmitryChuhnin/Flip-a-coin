@@ -50,6 +50,11 @@ export class FrameMeter {
     return ms;
   }
 
+  /** False before the first frame and after a pause: the next frame gives no interval. */
+  hasLastFrame(): boolean {
+    return this.lastMs !== null;
+  }
+
   /** Forgets the last frame, so a pause (hidden tab) does not count as one long frame. */
   pause(): void {
     this.lastMs = null;

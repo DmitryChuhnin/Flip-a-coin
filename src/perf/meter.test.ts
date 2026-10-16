@@ -45,6 +45,17 @@ describe('FrameMeter', () => {
     expect(meter.last()).toMatchObject({ frames: 1, worstMs: 16 });
   });
 
+  it('has a last frame from the first frame until a pause', () => {
+    const meter = new FrameMeter();
+    expect(meter.hasLastFrame()).toBe(false);
+    meter.frame(NaN);
+    expect(meter.hasLastFrame()).toBe(false);
+    meter.frame(1000);
+    expect(meter.hasLastFrame()).toBe(true);
+    meter.pause();
+    expect(meter.hasLastFrame()).toBe(false);
+  });
+
   it('skips a timestamp that does not move forward or is not finite', () => {
     const meter = new FrameMeter();
     expect(meter.frame(NaN)).toBeNull();

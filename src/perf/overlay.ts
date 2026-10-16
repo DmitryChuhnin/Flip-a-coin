@@ -8,8 +8,17 @@ export const REFRESH_MS = 250;
 export interface PerfOverlay {
   /** The same engine with `plan` and `prepare` timed; results and errors pass through unchanged. */
   time(engine: TossEngine): TossEngine;
-  /** Counts the frames of a flight, from `flying` to the next state. */
+  /**
+   * Counts the frames of a flight, from the first frame stamped after the tap handler to the next
+   * state. The frames before it wait for the plan, which the handler runs; they show as the tap.
+   */
   onState(state: TossState): void;
+}
+
+interface PendingTap {
+  ms: number | null;
+  /** When the tap handler ended; null until it has. */
+  endMs: number | null;
 }
 
 export interface PerfHost {
@@ -40,19 +49,31 @@ export function startPerfOverlay({ document, now, requestFrame }: PerfHost): Per
   let planMs: number | null = null;
   let prepareMs: number | null = null;
   let flight: FrameNumbers | null = null;
+  let tapMs: number | null = null;
+  // The tap whose frames are still counted; `ms` is null once a pause made it unknown.
+  let tap: PendingTap | null = null;
   let flying = false;
   let shownAtMs = -Infinity;
 
   function render(): void {
     panel.textContent = [
       framesLine(`last ${WINDOW_MS / 1000} s`, meter.last()),
-      framesLine('flight', flight),
-      `plan ${workMs(planMs)}, prepare ${workMs(prepareMs)}`,
+      framesLine('last flight', flight),
+      `tap frame ${frameMs(tapMs)}, plan ${workMs(planMs)}, prepare ${workMs(prepareMs)}`,
     ].join('\n');
   }
 
   function tick(nowMs: number): void {
-    meter.frame(nowMs);
+    const intervalMs = meter.frame(nowMs);
+    if (tap) {
+      if (intervalMs !== null && tap.ms !== null) tap.ms += intervalMs;
+      // Chromium stamps a frame with its vsync time, also when it runs after the tap handler.
+      if (tap.endMs !== null && nowMs >= tap.endMs) {
+        tapMs = tap.ms;
+        tap = null;
+        meter.startSpan();
+      }
+    }
     if (nowMs - shownAtMs >= REFRESH_MS) {
       shownAtMs = nowMs;
       render();
@@ -70,7 +91,10 @@ export function startPerfOverlay({ document, now, requestFrame }: PerfHost): Per
   }
 
   // On showing too: a frame already scheduled may run after the tab hides.
-  document.addEventListener('visibilitychange', () => meter.pause());
+  document.addEventListener('visibilitychange', () => {
+    meter.pause();
+    if (tap) tap.ms = null;
+  });
   render();
   requestFrame(tick);
 
@@ -98,9 +122,13 @@ export function startPerfOverlay({ document, now, requestFrame }: PerfHost): Per
     onState(state) {
       if (state === 'flying') {
         flying = true;
-        meter.startSpan();
+        const pending: PendingTap = { ms: meter.hasLastFrame() ? 0 : null, endMs: null };
+        tap = pending;
+        // The handler runs on after this call, with the launch sound; the microtask waits for it.
+        queueMicrotask(() => (pending.endMs = now()));
       } else if (flying) {
         flying = false;
+        tap = null;
         flight = meter.endSpan();
       }
     },

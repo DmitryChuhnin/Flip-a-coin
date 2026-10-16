@@ -233,8 +233,11 @@ Without the parameter it costs about 0.8 kB gzipped and runs nothing.
   sees, not the time a render call takes.
 - Every visibility change clears the last frame, so neither the pause nor a frame the browser
   scheduled before the tab hid counts as one long frame.
-- The flight numbers run from `flying` to the next state; their first frame includes the plan,
-  which runs in the tap handler.
+- The flight numbers run from the first frame stamped after the tap handler to the next state.
+  The frames before it wait for the plan, which the handler runs; the panel shows them on their
+  own as `tap frame`. The end of the handler, not the next frame, closes the tap: Chromium
+  stamps a frame with its vsync time even when it runs after the handler, and skips the vsync
+  the handler overran, so the first frames after a tap look on time and the delay shows later.
 - `prepare` shows only the first call per body: the engine records a body's fallbacks once, and
   a later call for an item switched back to returns at once.
 
