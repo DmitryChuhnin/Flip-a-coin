@@ -1,6 +1,9 @@
 /** Frames older than this leave the running numbers. */
 export const WINDOW_MS = 1000;
-/** A frame this long or longer runs below 50 fps: at 60, 90 and 120 Hz it missed a 60 fps frame. */
+/**
+ * A frame this long or longer runs at 50 fps or slower; at 60, 90 and 120 Hz such a frame missed
+ * a 60 fps frame.
+ */
 export const SLOW_FRAME_MS = 20;
 
 export interface FrameNumbers {
@@ -31,14 +34,25 @@ export class FrameMeter {
   private recent: { atMs: number; ms: number }[] = [];
   private span: number[] | null = null;
 
-  frame(nowMs: number): void {
-    if (this.lastMs !== null && nowMs > this.lastMs) {
-      const ms = nowMs - this.lastMs;
+  /**
+   * The interval since the last frame; null for the first frame, and for a time that is not
+   * finite or does not move forward, which is skipped.
+   */
+  frame(nowMs: number): number | null {
+    if (!Number.isFinite(nowMs) || (this.lastMs !== null && nowMs <= this.lastMs)) return null;
+    const ms = this.lastMs === null ? null : nowMs - this.lastMs;
+    if (ms !== null) {
       this.recent.push({ atMs: nowMs, ms });
       this.span?.push(ms);
     }
     this.lastMs = nowMs;
     while (this.recent.length > 0 && this.recent[0]!.atMs <= nowMs - WINDOW_MS) this.recent.shift();
+    return ms;
+  }
+
+  /** False before the first frame and after a pause: the next frame gives no interval. */
+  hasLastFrame(): boolean {
+    return this.lastMs !== null;
   }
 
   /** Forgets the last frame, so a pause (hidden tab) does not count as one long frame. */

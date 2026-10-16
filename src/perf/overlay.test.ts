@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Pose } from '../math/quat';
 import type { TossEngine } from '../toss/engine';
 import type { TossPlan } from '../toss/planToss';
+import { SLOW_FRAME_MS } from './meter';
 import { REFRESH_MS, startPerfOverlay } from './overlay';
 
 function host() {
@@ -39,7 +40,7 @@ describe('startPerfOverlay', () => {
   it('adds a panel hidden from screen readers that shows dashes before any numbers', () => {
     host();
     expect(panel().getAttribute('aria-hidden')).toBe('true');
-    expect(panel().textContent).toBe('last 1 s -\nflight -\nplan -, prepare -');
+    expect(panel().textContent).toBe('last 1 s -\nlast flight -\ntap frame -, plan -, prepare -');
   });
 
   it('shows the last second at most every refresh interval', () => {
@@ -121,35 +122,140 @@ describe('startPerfOverlay', () => {
     expect(panel().textContent).toContain('prepare 90 ms');
   });
 
-  it('counts the frames of a flight and keeps them after landing', () => {
-    const { overlay, frames } = host();
+  // The overlay reads the end of the tap handler in a microtask.
+  const handlerEnd = () => Promise.resolve();
+
+  it('counts the frames of a flight apart from the tap frame and keeps them after landing', async () => {
+    const { overlay, advance, frames } = host();
     frames(16);
+    advance(20);
     overlay.onState('flying');
-    frames(40, 16, 16);
+    await handlerEnd();
+    frames(40, 16, 18);
     overlay.onState('result');
     frames(REFRESH_MS);
-    expect(panel().textContent).toContain('flight 42 fps, worst 40 ms, slow 1/3');
+    expect(panel().textContent).toContain('last flight 59 fps, worst 18 ms, slow 0/2');
+    expect(panel().textContent).toContain('tap frame 40 ms');
     overlay.onState('idle');
     frames(REFRESH_MS);
-    expect(panel().textContent).toContain('flight 42 fps');
+    expect(panel().textContent).toContain('last flight 59 fps');
   });
 
-  it('ends a flight on whatever state follows it', () => {
+  it('ends a flight on whatever state follows it, and knows no tap frame before any frame', async () => {
     const { overlay, frames } = host();
     overlay.onState('flying');
+    await handlerEnd();
     frames(16, 16);
     overlay.onState('error');
     frames(REFRESH_MS);
-    expect(panel().textContent).toContain('flight 63 fps, worst 16 ms, slow 0/1');
+    expect(panel().textContent).toContain('last flight 63 fps, worst 16 ms, slow 0/1');
+    expect(panel().textContent).toContain('tap frame -');
   });
+
+  it('counts the frames stamped before the tap handler ended into the tap frame', async () => {
+    // Chromium stamps a late frame with its vsync time and skips the vsync the handler overran.
+    const { overlay, advance, frames } = host();
+    frames(16, 16);
+    advance(70);
+    overlay.onState('flying');
+    await handlerEnd();
+    frames(17, 33, 16, 17);
+    overlay.onState('result');
+    frames(REFRESH_MS);
+    expect(panel().textContent).toContain('tap frame 50 ms');
+    expect(panel().textContent).toContain('last flight 61 fps, worst 17 ms, slow 0/2');
+  });
+
+  it('folds a stamp that does not move forward into the tap frame', async () => {
+    const { overlay, advance, frames } = host();
+    frames(16);
+    advance(20);
+    overlay.onState('flying');
+    await handlerEnd();
+    frames(0, 34, 16);
+    overlay.onState('result');
+    frames(REFRESH_MS);
+    expect(panel().textContent).toContain('tap frame 34 ms');
+    expect(panel().textContent).toContain('last flight 63 fps, worst 16 ms, slow 0/1');
+  });
+
+  it('drops a tap whose flight ended before its frame came', async () => {
+    const { overlay, advance, frames } = host();
+    frames(16);
+    advance(20);
+    overlay.onState('flying');
+    await handlerEnd();
+    frames(40, 16);
+    overlay.onState('result');
+    overlay.onState('idle');
+    advance(100);
+    overlay.onState('flying');
+    overlay.onState('error');
+    await handlerEnd();
+    frames(16, REFRESH_MS);
+    expect(panel().textContent).toContain('last flight -');
+    expect(panel().textContent).toContain('tap frame 40 ms');
+  });
+
+  const setHidden = (hidden: boolean) => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: hidden });
+    document.dispatchEvent(new Event('visibilitychange'));
+  };
 
   it('does not count the time the tab was hidden as a frame', () => {
     const { frames } = host();
     frames(16, 16);
-    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
-    document.dispatchEvent(new Event('visibilitychange'));
-    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+    setHidden(true);
+    setHidden(false);
     frames(30_000, 16, REFRESH_MS);
     expect(panel().textContent).toContain(`worst ${REFRESH_MS} ms, slow 1/2`);
+  });
+
+  it('shows no tap frame when the tab hid before the frames after the tap handler', async () => {
+    const { overlay, advance, frames } = host();
+    frames(16);
+    advance(40);
+    overlay.onState('flying');
+    await handlerEnd();
+    setHidden(true);
+    setHidden(false);
+    frames(30_000, 16, REFRESH_MS);
+    expect(panel().textContent).toContain('tap frame -');
+  });
+
+  it('does not count a hidden time that a late frame started either', () => {
+    const { frames } = host();
+    frames(16);
+    setHidden(true);
+    frames(16);
+    setHidden(false);
+    frames(30_000, REFRESH_MS);
+    expect(panel().textContent).toContain(`worst ${REFRESH_MS} ms, slow 1/1`);
+  });
+
+  it('rounds frame times down and work times up, as the slow count and a budget read them', () => {
+    const { overlay, advance, frames } = host();
+    const engine: TossEngine = {
+      prepare: () => void advance(40.2),
+      plan: vi.fn().mockImplementation(() => {
+        advance(29.1);
+        return PLAN;
+      }) as TossEngine['plan'],
+    };
+    const timed = overlay.time(engine);
+    timed.prepare(BODY);
+    timed.plan(BODY, START, false);
+    frames(16, ...Array<number>(13).fill(SLOW_FRAME_MS - 0.4));
+    expect(panel().textContent).toContain(`worst ${SLOW_FRAME_MS - 1} ms, slow 0/13`);
+    expect(panel().textContent).toContain('plan 30 ms, prepare 41 ms');
+  });
+
+  it('passes a thrown value that is not an Error through as it is', () => {
+    const { overlay } = host();
+    const engine = { prepare: vi.fn(), plan: vi.fn() } as TossEngine;
+    vi.mocked(engine.plan).mockImplementation(() => {
+      throw 'no plan';
+    });
+    expect(thrown(() => overlay.time(engine).plan(BODY, START, false))).toBe('no plan');
   });
 });

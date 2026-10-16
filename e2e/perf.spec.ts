@@ -15,14 +15,30 @@ test('shows frame rate and planning time with ?perf and passes taps on the panel
   const panel = page.locator('#perf');
   await expect(panel).toContainText(/last 1 s \d+ fps, worst \d+ ms, slow \d+\/\d+/);
   await expect(panel).toContainText(/prepare \d+ ms/);
-  await expect(panel).toContainText('flight -');
+  await expect(panel).toContainText('last flight -');
 
   const box = (await panel.boundingBox())!;
   await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
   await expect(body(page)).toHaveAttribute('data-toss-count', '1');
   await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: 10_000 });
-  await expect(panel).toContainText(/flight \d+ fps, worst \d+ ms, slow \d+\/\d+/);
-  await expect(panel).toContainText(/plan \d+ ms, prepare \d+ ms/);
+  await expect(panel).toContainText(/last flight \d+ fps, worst \d+ ms, slow \d+\/\d+/);
+  await expect(panel).toContainText(/tap frame \d+ ms, plan \d+ ms, prepare \d+ ms/);
+  expect(errors).toEqual([]);
+});
+
+test('keeps the panel and the reload offer with ?perf when the engine fails to load', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.route('**/*.wasm', (route) => route.abort());
+  await page.goto('./?perf');
+  await expect(body(page)).toHaveAttribute('data-toss-state', 'error', { timeout: 15_000 });
+  // The state attribute is set before the panel hears of the state; the button comes after it.
+  await expect(page.getByRole('button', { name: 'Reload' })).toBeVisible();
+  const panel = page.locator('#perf');
+  await expect(panel).toContainText(/last 1 s \d+ fps/);
+  await expect(panel).toContainText('tap frame -, plan -, prepare -');
   expect(errors).toEqual([]);
 });
 

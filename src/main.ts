@@ -68,7 +68,8 @@ function startScene(canvas: HTMLCanvasElement, announcer: HTMLElement, caption: 
     return;
   }
 
-  // Frame rate and planning time on screen, so a phone can be checked without DevTools.
+  // Frame rate and planning time on screen, so a phone can be checked without DevTools. It starts
+  // before `scene.start()`: its frame callback runs first, and the landing frame is counted.
   const perf = new URLSearchParams(window.location.search).has('perf')
     ? startPerfOverlay({
         document,

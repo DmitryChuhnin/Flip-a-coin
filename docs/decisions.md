@@ -227,13 +227,17 @@ circle of 80% of the side. iOS fills a transparent touch icon with black.
 `?perf` on the page URL adds a panel with the frame rate and the toss planning time
 (`src/perf/`). The 60 fps target is checked on a phone against the deployed game, where DevTools
 need a cable and a desktop browser; behind `import.meta.env.DEV` the panel would not exist there.
-Without the parameter it costs about 0.8 kB gzipped and runs nothing.
+Without the parameter it costs about 1 kB gzipped (measured 2026-10-16) and runs nothing.
 
 - The panel counts the intervals between its own animation frames, which is what the player
   sees, not the time a render call takes.
-- A hidden tab clears the last frame, so the pause does not count as one long frame.
-- The flight numbers run from `flying` to the next state; their first frame includes the plan,
-  which runs in the tap handler.
+- Every visibility change clears the last frame, so neither the pause nor a frame the browser
+  scheduled before the tab hid counts as one long frame.
+- The flight numbers run from the first frame stamped after the tap handler to the next state.
+  The frames before it wait for the plan, which the handler runs; the panel shows them on their
+  own as `tap frame`. The end of the handler, not the next frame, closes the tap: Chromium
+  stamps a frame with its vsync time even when it runs after the handler, and skips the vsync
+  the handler overran, so the first frames after a tap look on time and the delay shows later.
 - `prepare` shows only the first call per body: the engine records a body's fallbacks once, and
   a later call for an item switched back to returns at once.
 

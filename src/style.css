@@ -314,11 +314,11 @@ body[data-toss-state='error'] .hint {
   font-weight: 700;
 }
 
-/* The ?perf panel under the top bar; taps pass through it to the table. */
+/* The ?perf panel 8 px under the 52 px top bar (`.round`, `.tabs`); taps pass through it. */
 #perf {
   position: fixed;
   top: calc(var(--top) + 60px);
-  left: max(8px, env(safe-area-inset-left));
+  left: calc(env(safe-area-inset-left) + 8px);
   margin: 0;
   padding: 4px 6px;
   border-radius: 6px;
