@@ -253,6 +253,73 @@ describe('modelBody', () => {
     );
   });
 
+  it.each(ITEMS)(
+    'accepts the %s with its origin off by 2e-4 of the reach and keeps all its symmetries',
+    (_, template) => {
+      const { points, faces } = asModel(template);
+      const off = 2e-4 * Math.max(...points.map(length3));
+      const moved = points.map((p): Vec3 => [
+        p[0] + 0.48 * off,
+        p[1] + 0.6 * off,
+        p[2] + 0.64 * off,
+      ]);
+      const { body } = modelBody({ points: moved, faces }, template);
+      expect(body.symmetries).toHaveLength(template.symmetries.length);
+    },
+  );
+
+  it.each<[string, Vec3]>([
+    ['x', [1, 0, 0]],
+    ['z', [0, 0, 1]],
+    ['between x and z', [Math.SQRT1_2, 0, Math.SQRT1_2]],
+  ])(
+    'rejects a coin with its origin off by 1e-3 and 3e-2 of the reach along %s, in its plane, where its flip keeps the offset',
+    (_, d) => {
+      const { points, faces } = asModel(COIN_BODY);
+      const reach = Math.max(...points.map(length3));
+      for (const share of [1e-3, 3e-2]) {
+        const off = share * reach;
+        const moved = points.map((p): Vec3 => [p[0] + d[0] * off, p[1], p[2] + d[2] * off]);
+        expect(() => modelBody({ points: moved, faces }, COIN_BODY)).toThrow(
+          /The model's origin is .+ of its size off the center of mass of its hull, more than 2e-4/,
+        );
+      }
+    },
+  );
+
+  // The kite (2, 0), (0, ±1), (-1, 0) has its center of mass at x = 1/3, its corners' mean at 1/4,
+  // and only the flip about x: aligning keeps an origin off along x.
+  const kite = (origin: number) =>
+    [
+      [2, 0],
+      [0, 1],
+      [-1, 0],
+      [0, -1],
+    ].flatMap(([x, z]): Vec3[] => [
+      [(x! - origin) / 100, 0.001, z! / 100],
+      [(x! - origin) / 100, -0.001, z! / 100],
+    ]);
+
+  it('accepts a kite-shaped coin with its origin at its center of mass and rejects one with its origin at the mean of its corners', () => {
+    const { faces } = asModel(COIN_BODY);
+    expect(modelBody({ points: kite(1 / 3), faces }, COIN_BODY).body.symmetries).toHaveLength(2);
+    expect(() => modelBody({ points: kite(1 / 4), faces }, COIN_BODY)).toThrow(
+      /The model's origin is 4\.8e-2 of its size off the center of mass of its hull/,
+    );
+  });
+
+  it('accepts a kite-shaped coin with its origin 1e-4 of the reach off its center of mass either way along its flip axis and rejects one 3e-4 off', () => {
+    const { faces } = asModel(COIN_BODY);
+    const reach = Math.max(...kite(1 / 3).map(length3));
+    const off = (share: number) => kite(1 / 3 + share * reach * 100);
+    for (const share of [1e-4, -1e-4]) {
+      expect(modelBody({ points: off(share), faces }, COIN_BODY).body.symmetries).toHaveLength(2);
+    }
+    expect(() => modelBody({ points: off(3e-4), faces }, COIN_BODY)).toThrow(
+      /The model's origin is 3\.0e-4 of its size off the center of mass of its hull, more than 2e-4/,
+    );
+  });
+
   it('accepts a sheared coin with its center of mass above its base and rejects one beyond', () => {
     const { points, faces } = asModel(COIN_BODY);
     const sheared = (k: number) => points.map((p): Vec3 => [p[0] + k * p[1], p[1], p[2]]);

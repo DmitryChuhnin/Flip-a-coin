@@ -345,8 +345,15 @@ Ico Sphere, whose vertex table is rounded to three decimals of 200, up to 1.4e-5
 `rotationGroup` still builds each rotation from two pairs of corners, so it carries the error of
 four: corners moved by 1e-4 of the reach in random directions pass on every procedural item, also
 with normals computed from the moved mesh, at 3e-4 some meshes of every item fail, and at 1e-3 all
-do (measured 2026-10-17). Fitting each rotation to all its corners would move that limit toward
-1e-3; the measured one already passes the rounding of mesh tools. Points closer together than 1e-5
+do (measured 2026-10-17), so corners pass up to about 2e-4. Fitting each rotation to all its corners
+would move that limit toward 1e-3; the measured one already passes the rounding of mesh tools. An
+origin off the hull's center of mass fails the same way: moved by 2e-4 of the reach in seven
+directions every item passes, from 5e-4 none does (2026-10-17). Averaging puts the hull's center of
+mass on the origin unless every symmetry keeps a direction: a coin with its origin off along one
+of its flip axes by 1e-3 to 0.4 of the reach keeps only that flip, and the offset with it, so the
+center of mass of the aligned hull must be within 2e-4 of the reach of the origin. Off those axes
+the coin keeps no symmetry and fails to align (2026-10-17). Points closer
+together than 1e-5
 of the reach are merged first: split vertices a little apart would be corners closer together than
 2e-3 of the reach, which are rejected, as rotations found to 1e-3 could take one for the other.
 Corners are the hull points where three sides meet, hull triangles turned less than 1e-3 rad from
