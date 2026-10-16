@@ -63,7 +63,9 @@ test('ignores a tap while the camera settles on the landed die', async ({ page }
   await openWith(page, { tab: 'dice', die: 'd6' });
   await expect(body(page)).toHaveAttribute('data-toss-state', 'idle', { timeout: 15_000 });
   // A paused clock advances frames only on runFor, so the tap lands within 50 ms of landing.
-  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
+  // The installed clock follows the runner's; a minute ahead stays ahead on a stalled runner.
+  await page.clock.pauseAt(Date.now() + 60_000);
+  await expect(body(page)).toHaveAttribute('data-toss-state', 'idle');
   const canvas = page.locator('#scene');
 
   await canvas.tap();
