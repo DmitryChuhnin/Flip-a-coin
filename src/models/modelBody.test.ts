@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { COIN_BODY } from '../coin/coinSpec';
 import { createDie, DIE_KINDS } from '../dice/dieSpec';
-import { dot3, length3, type Vec3 } from '../math/quat';
+import { dot3, length3, rotate, type Vec3 } from '../math/quat';
 import { seededSource } from '../testing/seededSource';
 import { bodyReach, hullVectors, type TossBody } from '../toss/body';
 import { upFace } from '../toss/faces';
@@ -32,6 +32,36 @@ function jitter(points: readonly Vec3[], share: number): Vec3[] {
     return [p[0] + across * Math.cos(angle), p[1] + across * Math.sin(angle), p[2] + z * step];
   });
 }
+
+const distance = (a: Vec3, b: Vec3) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+
+/** The farthest any symmetry takes a hull point from the hull, as a share of the reach, and a normal from the normals. */
+function symmetryError(body: TossBody<string>): { hull: number; normals: number } {
+  const points = hullVectors(body.hull);
+  const normals = body.faces.map((face) => face.normal);
+  const off = (set: readonly Vec3[], q: (typeof body.symmetries)[number]) =>
+    Math.max(...set.map((p) => Math.min(...set.map((s) => distance(rotate(q, p), s)))));
+  return {
+    hull: Math.max(...body.symmetries.map((q) => off(points, q))) / bodyReach(body.hull),
+    normals: Math.max(...body.symmetries.map((q) => off(normals, q))),
+  };
+}
+
+/** Blender's Ico Sphere at Subdivisions 1, from its vertex table, exported with +Y Up. */
+const BLENDER_ICO: Vec3[] = [
+  [0, 0, -200],
+  [144.72, -105.144, -89.443],
+  [-55.277, -170.128, -89.443],
+  [-178.885, 0, -89.443],
+  [-55.277, 170.128, -89.443],
+  [144.72, 105.144, -89.443],
+  [55.277, -170.128, 89.443],
+  [-144.72, -105.144, 89.443],
+  [-144.72, 105.144, 89.443],
+  [55.277, 170.128, 89.443],
+  [178.885, 0, 89.443],
+  [0, 0, 200],
+].map(([x, y, z]): Vec3 => [Math.fround(x! / 200), Math.fround(z! / 200), Math.fround(-y! / 200)]);
 
 /** A prism on a regular n-gon, shaped like the coin, in meters. */
 function prism(n: number): Vec3[] {
@@ -81,17 +111,58 @@ describe('modelBody', () => {
     expect(body.initialPose.position[1]).toBeCloseTo(halfEdge, 5);
   });
 
-  it.each(ITEMS)('accepts the %s with corners off by 3e-7 of the reach', (_, template) => {
+  it.each(ITEMS)(
+    'makes the %s with corners off by 1e-4 of the reach and normals by 2e-4 exactly symmetric',
+    (_, template) => {
+      const { points } = asModel(template);
+      const turned = jitter(
+        template.faces.map((face) => face.normal),
+        2e-4,
+      ).map((n) => n.map((v) => v / length3(n)));
+      const shape = {
+        points: jitter(points, 1e-4),
+        faces: template.faces.map((face, i) => ({ value: face.value, normal: turned[i] })),
+      };
+      expect(shape.faces[0]!.normal).not.toEqual(template.faces[0]!.normal);
+      const { body } = modelBody(shape, template);
+      expect(body.symmetries).toHaveLength(template.symmetries.length);
+      const error = symmetryError(body);
+      expect(error.hull).toBeLessThan(1e-6);
+      expect(error.normals).toBeLessThan(1e-12);
+    },
+  );
+
+  it.each(ITEMS)('rejects the %s with corners off by 1e-3 of the reach', (_, template) => {
     const model = asModel(template);
-    const points = jitter(model.points, 3e-7);
-    expect(() => modelBody({ ...model, points }, template)).not.toThrow();
+    const points = jitter(model.points, 1e-3);
+    expect(() => modelBody({ ...model, points }, template)).toThrow(RangeError);
   });
 
-  // A rotation found on the corners carries their error into the normals checked to 1e-6.
-  it.each(ITEMS)('rejects the %s with corners off by 1e-6 of the reach', (_, template) => {
-    const model = asModel(template);
-    const points = jitter(model.points, 1e-6);
-    expect(() => modelBody({ ...model, points }, template)).toThrow(RangeError);
+  it("accepts a d20 made from Blender's Ico Sphere, up to 1.4e-5 of the radius off", () => {
+    const d20 = createDie('d20').body;
+    const edge = Math.min(
+      ...BLENDER_ICO.flatMap((p, i) => BLENDER_ICO.slice(i + 1).map((s) => distance(p, s))),
+    );
+    // A face of an icosahedron is three vertices an edge apart; its normal points at their middle.
+    const faces: { value: number; normal: Vec3 }[] = [];
+    BLENDER_ICO.forEach((a, i) =>
+      BLENDER_ICO.forEach((b, j) =>
+        BLENDER_ICO.forEach((c, k) => {
+          const near = (p: Vec3, q: Vec3) => distance(p, q) < edge * 1.01;
+          if (i < j && j < k && near(a, b) && near(b, c) && near(a, c)) {
+            const sum: Vec3 = [a[0] + b[0] + c[0], a[1] + b[1] + c[1], a[2] + b[2] + c[2]];
+            faces.push({
+              value: faces.length + 1,
+              normal: [sum[0] / length3(sum), sum[1] / length3(sum), sum[2] / length3(sum)],
+            });
+          }
+        }),
+      ),
+    );
+    expect(faces).toHaveLength(20);
+    const { body } = modelBody({ points: BLENDER_ICO, faces }, d20);
+    expect(body.symmetries).toHaveLength(60);
+    expect(symmetryError(body).hull).toBeLessThan(1e-6);
   });
 
   it('keeps only the corners: an outline engraved in each side does not count', () => {
@@ -218,6 +289,11 @@ describe('modelBody', () => {
       /not a unit vector/,
     ],
     [
+      'a normal 5e-4 longer than unit, which aligning would hide',
+      { points: CUBE, faces: withFace(0, { value: 1, normal: [1.0005, 0, 0] }) },
+      /not a unit vector/,
+    ],
+    [
       'faces that point at corners: an octahedron with cube faces',
       {
         points: AXES.map((p): Vec3 => [p[0] / 100, p[1] / 100, p[2] / 100]),
@@ -272,9 +348,24 @@ describe('modelBody', () => {
       /No symmetry maps|faces onto faces/,
     ],
     [
-      'a corner off by a ten-thousandth of the reach',
-      { points: [[0.010002, 0.01, 0.01], ...CUBE.slice(0, 7)], faces: AXIS_FACES },
-      /No symmetry maps/,
+      'a corner off by 8.7e-4 of the reach, which some symmetries match and others do not',
+      { points: [[0.010015, 0.01, 0.01], ...CUBE.slice(0, 7)], faces: AXIS_FACES },
+      /too far off their symmetric places/,
+    ],
+    [
+      'a cube with corners cut 1e-3 of the reach deep, 1.4e-3 apart, closer than 2e-3',
+      {
+        points: CUBE.flatMap(([x, y, z]): Vec3[] => {
+          const depth = 1e-3 * Math.hypot(x, y, z);
+          return [
+            [x - Math.sign(x) * depth, y, z],
+            [x, y - Math.sign(y) * depth, z],
+            [x, y, z - Math.sign(z) * depth],
+          ];
+        }),
+        faces: AXIS_FACES,
+      },
+      /corners closer together than 2e-3 of its size/,
     ],
     [
       'a collider whose origin is off the center',

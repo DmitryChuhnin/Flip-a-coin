@@ -1,6 +1,17 @@
 import { Vector3 } from 'three';
 import { ConvexHull, type Face as HullFace } from 'three/examples/jsm/math/ConvexHull.js';
-import { cross, dot3, fromTo, length3, rotate, type Quat, type Vec3 } from '../math/quat';
+import {
+  conjugate,
+  cross,
+  dot3,
+  fromTo,
+  length3,
+  multiply,
+  normalize,
+  rotate,
+  type Quat,
+  type Vec3,
+} from '../math/quat';
 import { rotationGroup } from '../math/symmetry';
 import { bodyReach, defineBody, hullVectors, type TossBody } from '../toss/body';
 import { upFace, type Face } from '../toss/faces';
@@ -19,9 +30,14 @@ export interface ModelBody<V extends string> {
   scale: number;
 }
 
-/** The hull check in `defineBody` uses the same share of the reach, so every symmetry passes it. */
-const SYMMETRY_TOLERANCE = 1e-5;
-/** Points this share of the reach off a plane lie in it: on the table or in a flat mesh. */
+/**
+ * Rotations that map the corners and the face directions onto themselves to this share of the
+ * reach count as symmetries, and both are made exactly symmetric. Mesh tools round positions.
+ */
+const SNAP_TOLERANCE = 1e-3;
+/** Face normals must be unit to this, as in `defineBody`; only their directions are aligned. */
+const UNIT_TOLERANCE = 1e-6;
+/** Points this share of the reach off a plane lie in it: a flat mesh, a center of mass on an edge. */
 const PLANE_TOLERANCE = 1e-5;
 /** Hull triangles turned less than 1e-3 rad from each other lie in one flat side. */
 const SIDE_COS = Math.cos(1e-3);
@@ -52,13 +68,15 @@ export function modelBody<V extends string>(
     throw new RangeError(`The model has ${corners.length} corners, more than ${MAX_CORNERS}`);
   }
   const scale = bodyReach(template.hull) / modelReach;
-  const hull = new Float32Array(corners.flatMap((p) => p.map((v) => v * scale)));
+  const scaled = corners.map((p): Vec3 => [p[0] * scale, p[1] * scale, p[2] * scale]);
+  const { symmetries, corners: exact, faces: aligned } = symmetrize(scaled, faces);
+  const hull = new Float32Array(exact.flat());
   const vectors = hullVectors(hull);
   const reach = bodyReach(hull);
 
   // The model starts with the same outcome up as the procedural item; a missing one fails below.
   const start = template.faces[upFace(template.initialPose.quaternion, template.faces).index]!;
-  const top = faces.find((face) => face.value === start.value)?.normal ?? [0, 1, 0];
+  const top = aligned.find((face) => face.value === start.value)?.normal ?? [0, 1, 0];
   const quaternion = fromTo(top, [0, 1, 0]);
   const lowest = Math.min(...vectors.map((p) => rotate(quaternion, p)[1]));
   const [x, , z] = template.initialPose.position;
@@ -66,8 +84,8 @@ export function modelBody<V extends string>(
   const body = defineBody({
     hull,
     density: template.density,
-    faces,
-    symmetries: rotationGroup(vectors, SYMMETRY_TOLERANCE),
+    faces: aligned,
+    symmetries,
     clearance: template.clearance,
     initialPose: { position: [x, -lowest, z], quaternion },
     launch: {
@@ -78,6 +96,141 @@ export function modelBody<V extends string>(
   // The symmetries carry every face onto the start one, so checking it covers them all.
   checkRest(vectors, quaternion, reach, start.value);
   return { body, scale };
+}
+
+/**
+ * The rotations that map the corners onto themselves to SNAP_TOLERANCE, made into an exact group,
+ * with the corners and the face directions averaged over it. Face directions that some rotation
+ * does not carry onto another stay as given, for `defineBody` to reject.
+ */
+function symmetrize<V extends string>(
+  corners: readonly Vec3[],
+  faces: readonly Face<V>[],
+): { symmetries: Quat[]; corners: Vec3[]; faces: Face<V>[] } {
+  const reach = corners.reduce((max, p) => Math.max(max, length3(p)), 0);
+  // Rotations found to SNAP_TOLERANCE would take such corners for one another.
+  const gap = corners.reduce(
+    (min, p, i) => corners.slice(i + 1).reduce((m, q) => Math.min(m, length3(sub(p, q))), min),
+    Infinity,
+  );
+  if (gap < 2 * SNAP_TOLERANCE * reach) {
+    throw new RangeError(
+      `The model has corners closer together than ${(2 * SNAP_TOLERANCE).toExponential()} of its size`,
+    );
+  }
+  const found = rotationGroup(corners, SNAP_TOLERANCE);
+  const near = nearestCorner(corners, SNAP_TOLERANCE * reach);
+  const moves = found.map((q) => corners.map((p) => near(rotate(q, p))));
+  // A rotation is fixed by where it sends two corners off one line through the origin.
+  const n = corners.length;
+  const a = corners.indexOf(farthest(corners, length3));
+  const b = corners.indexOf(farthest(corners, (p) => length3(cross(corners[a]!, p))));
+  const byKey = new Map(moves.map((move, i) => [move[a]! * n + move[b]!, i]));
+  // product[h][g] is the index of the rotation h·g; it is missing when some rotation maps the
+  // corners only to about SNAP_TOLERANCE.
+  const product = moves.map((h) => moves.map((g) => byKey.get(h[g[a]!]! * n + h[g[b]!]!) ?? -1));
+  if (product.some((row) => row.includes(-1))) {
+    throw new RangeError('The model corners are too far off their symmetric places to align them');
+  }
+
+  // Averaging h⁻¹·(h·g) over the group takes a near group to an exact one, squaring its error;
+  // a change too small for 1 - |cos| to show leaves an error below float precision.
+  let group: Quat[] = found;
+  for (let step = 0, change = 1; step < 8 && change > 0; step++) {
+    const next = group.map((g, i) =>
+      normalize(
+        group.reduce<Quat>(
+          (sum, h, j) => {
+            const term = multiply(conjugate(h), group[product[j]![i]!]!);
+            const sign = Math.sign(dot4(term, g)) || 1;
+            return [
+              sum[0] + sign * term[0],
+              sum[1] + sign * term[1],
+              sum[2] + sign * term[2],
+              sum[3] + sign * term[3],
+            ];
+          },
+          [0, 0, 0, 0],
+        ),
+      ),
+    );
+    change = next.reduce((max, q, i) => Math.max(max, 1 - Math.abs(dot4(q, group[i]!))), 0);
+    group = next;
+  }
+
+  const average = (images: (q: Quat, k: number) => Vec3): Vec3 =>
+    scaled3(
+      group.reduce<Vec3>((sum, q, k) => add(sum, rotate(conjugate(q), images(q, k))), [0, 0, 0]),
+      1 / group.length,
+    );
+  const exact = corners.map((_, i) => average((_, k) => corners[moves[k]![i]!]!));
+
+  const normals = faces.map((face) => face.normal);
+  const turns = group.map((q) => normals.map((n) => nearest(normals, rotate(q, n))));
+  const carried =
+    normals.every((n) => Math.abs(length3(n) - 1) <= UNIT_TOLERANCE) &&
+    turns.every(
+      (turn, k) =>
+        new Set(turn).size === normals.length &&
+        turn.every(
+          (m, v) => length3(sub(rotate(group[k]!, normals[v]!), normals[m]!)) <= SNAP_TOLERANCE,
+        ),
+    );
+  const aligned = carried
+    ? faces.map((face, v) => {
+        const sum = average((_, k) => normals[turns[k]![v]!]!);
+        return { value: face.value, normal: scaled3(sum, 1 / length3(sum)) };
+      })
+    : [...faces];
+  return { symmetries: group, corners: exact, faces: aligned };
+}
+
+/** Finds the corner within `cell` of a point, or -1; comparing with every corner is too slow. */
+function nearestCorner(corners: readonly Vec3[], cell: number): (target: Vec3) => number {
+  const half = Math.ceil(corners.reduce((max, p) => Math.max(max, length3(p)), 0) / cell) + 2;
+  const index = (v: number) => Math.floor(v / cell) + half;
+  const at = (x: number, y: number, z: number) => (x * (2 * half + 1) + y) * (2 * half + 1) + z;
+  const grid = new Map<number, number[]>();
+  corners.forEach((p, i) => {
+    const key = at(index(p[0]), index(p[1]), index(p[2]));
+    grid.set(key, [...(grid.get(key) ?? []), i]);
+  });
+  return (target) => {
+    const [x, y, z] = [index(target[0]), index(target[1]), index(target[2])];
+    let best = -1;
+    let distance = cell;
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          for (const i of grid.get(at(x + dx, y + dy, z + dz)) ?? []) {
+            const d = length3(sub(corners[i]!, target));
+            if (d <= distance) [best, distance] = [i, d];
+          }
+        }
+      }
+    }
+    return best;
+  };
+}
+
+function nearest(points: readonly Vec3[], target: Vec3): number {
+  let best = 0;
+  points.forEach((p, i) => {
+    if (length3(sub(p, target)) < length3(sub(points[best]!, target))) best = i;
+  });
+  return best;
+}
+
+function dot4(a: Quat, b: Quat): number {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+}
+
+function add(a: Vec3, b: Vec3): Vec3 {
+  return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+}
+
+function scaled3(v: Vec3, k: number): Vec3 {
+  return [v[0] * k, v[1] * k, v[2] * k];
 }
 
 function readFaces<V extends string>(raw: unknown, expected: readonly Face<V>[]): Face<V>[] {
@@ -180,8 +333,9 @@ function farthest(points: readonly Vec3[], distance: (p: Vec3) => number): Vec3 
 function checkRest(points: readonly Vec3[], q: Quat, reach: number, value: string): void {
   const turned = points.map((p) => rotate(q, p));
   const lowest = Math.min(...turned.map((p) => p[1]));
+  // Aligning keeps a side flat only where a symmetry turns it in place; a d10 side has none.
   const contact = turned
-    .filter((p) => p[1] - lowest <= PLANE_TOLERANCE * reach)
+    .filter((p) => p[1] - lowest <= SNAP_TOLERANCE * reach)
     .map((p): [number, number] => [p[0], p[2]]);
   const ring = outline(contact);
   const area = ring.reduce((sum, p, i) => sum + turn([0, 0], p, ring[(i + 1) % ring.length]!), 0);

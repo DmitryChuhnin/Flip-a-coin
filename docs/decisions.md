@@ -329,17 +329,26 @@ that a procedural die gets for reading its number: where a model prints it is no
 
 A model without a `faces` property is rejected rather than given faces from its geometry with
 values in order: those values would announce a number other than the one printed on the model.
-The model's symmetries are found on the corners of its hull with the tolerance `defineBody`
-checks the hull with, 1e-5 of the reach. The normal check, 1e-6, binds first: a rotation found on
-the corners carries their error, and on every procedural item corners moved by 3e-7 of the reach
-in random directions pass while 1e-6 fails (measured 2026-10-16). Corners are the hull points
-where three sides meet, hull triangles turned less than 1e-3 rad from each other making one side,
-so an engraved number does not break the symmetry. Their number is capped at 256: matching
-corners costs the square of their count per rotation, and 1538 corners took 0.9 s in Node. With
-its starting outcome up the model must rest on a flat side with its center of mass above it. Face
-directions that point at corners pass the symmetry checks (an octahedron with a cube's six
-directions), and so does a coin sheared until its center of mass is beyond its base; no toss
-rests with either up, and recording the item's fallback toss fails.
+The model's symmetries are the rotations that map the corners of its hull onto each other and the
+normals onto each other to 1e-3 of the reach. Each is averaged with the products that should equal
+it until they form an exact group, and the corners and normals are averaged over the group, so
+`defineBody` gets an exactly symmetric body and keeps its own tolerances. Without this the normal
+check, 1e-6, bound first: a rotation found on the corners carried their error, corners off by 1e-6
+of the reach failed, and so did a d20 made from Blender's Ico Sphere, whose vertex table is rounded
+to three decimals of 200, up to 1.4e-5 of the radius. Now corners moved by 1e-4 of the reach in
+random directions pass on every procedural item, also with normals computed from the moved mesh, and
+1e-3 fails (measured 2026-10-17). Averaging keeps a side flat only where a symmetry turns it in
+place, and none turns a side of the d10, so the rest check counts the hull points within 1e-3 of the
+reach of the lowest one as the side. Corners closer together than 2e-3 of the reach are rejected, as
+rotations found to 1e-3 could take one for the other. Corners are the hull points where three sides
+meet, hull triangles turned less than 1e-3 rad from each other making one side, so an engraved
+number does not break the symmetry. Their number is capped at 256: finding and checking the
+rotations costs the square of the corner count per rotation, and a round coin of 256 corners and 256
+rotations takes 0.35 s in Node (2026-10-17). With its starting outcome up the model must rest on a
+flat side with its center of mass above it. Face directions that point at corners pass the symmetry
+checks (an octahedron with a cube's six directions), and so does a coin sheared until its center of
+mass is beyond its base; no toss rests with either up, and a test shows that recording the fallback
+toss fails for both.
 
 Normals are read in the glTF scene's frame, not converted from Blender's: the file does not say
 what wrote it, and on a d6 or d8 normals turned by the Z-up swap pass every check while naming
