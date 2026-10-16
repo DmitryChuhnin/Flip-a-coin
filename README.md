@@ -63,17 +63,21 @@ The server must:
   of the cache itself can override them all: a CloudFront minimum TTL above zero, or a Cloudflare
   edge TTL that ignores `Cache-Control`, keeps the file despite `no-cache`, `no-store` or
   `private`. Turn such a setting off for these files, or purge them. Fastly ignores `no-cache` and
-  does not cache a file whose `Cache-Control` has `private`, so behind Fastly send these files with
-  `private` too. In `Surrogate-Control` Fastly documents only `max-age`, `stale-while-revalidate`
-  and `stale-if-error`, so do not rely on a `no-cache`, `no-store` or `private` there.
-  On Compute, send these files without `Surrogate-Control`, which can override `Cache-Control`, or
-  purge them. On VCL, the boilerplate that every service without custom VCL runs keeps a
+  does not cache a file whose `Cache-Control` has `private`, so behind Fastly purge these files on
+  every deploy or add `private` to their `Cache-Control` as follows. Fastly's "Controlling caching"
+  lists only `max-age`, `stale-while-revalidate` and `stale-if-error` as supported in
+  `Surrogate-Control` and says nothing of `no-cache`, `no-store` or `private` there, so do not count
+  on those three in `Surrogate-Control`. On Compute, a `Surrogate-Control` that parses is honored
+  before `Cache-Control` and can override its `private`, and an after-send callback can force a file
+  into the cache whatever its headers. Send these files without `Surrogate-Control` there, and make
+  sure the program does not force them into the cache.
+  On VCL, the boilerplate that every service without custom VCL runs keeps a
   file without `Expires`, `max-age`, `s-maxage` or `Surrogate-Control: max-age` for the fallback
-  TTL, an hour unless changed, and passes `private` even next to `Surrogate-Control`. The
-  service's cache settings and snippets run before that check; a cache setting with an action, or a
-  snippet that returns, ends `vcl_fetch` before it. Custom VCL may leave the check out, as Fastly
-  lets it remove any of the boilerplate's defaults. Make sure these files reach the check with
-  `private`, or purge them. The
+  TTL, an hour unless changed, and passes `private` even next to `Surrogate-Control`. The service's
+  cache settings and `vcl_fetch` snippets run before that `private` pass. A cache setting with an
+  action, or a snippet that returns, ends `vcl_fetch` before it, which is safe only if it ends in a
+  pass. Custom VCL may leave the pass out, as Fastly lets it remove any of the boilerplate's
+  defaults. Make sure these files reach the pass with `private` or are passed before it. The
   worker's install bypasses only the browser's own cache. The install checks that the page
   loads its own build's entry script, so a stale `sw.js` with a fresh page, or a stale page with
   a fresh `sw.js`, fails it: a new player gets no offline play. A returning player's browser sees
