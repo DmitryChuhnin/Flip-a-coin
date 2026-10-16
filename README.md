@@ -40,20 +40,29 @@ The server must:
   previous build;
 - answer `sw.js` with status 200 and a JavaScript MIME type. A browser neither registers nor
   updates a worker from a redirect or a file of another type;
-- serve every file the install downloads: the page, `assets/` and the public files (manifests,
-  icons). One failed download fails the install;
-- keep no old copy of the page or `sw.js` in a cache in front of it (CDN, proxy). A stale page
-  fails the install, a stale `sw.js` holds back an update;
+- serve every file the install downloads: the page (`index.html`), `assets/` and the public
+  files (manifests, icons). One failed download fails the install;
+- answer a file that is not there with 404, not with the page. The install would store the page
+  under that file's name, and the worker would answer with it in place of the file. A file in
+  `assets/` stays replaced through later deploys while its name stays the same;
+- keep no old copy of the page or `sw.js` in a cache in front of it (CDN, proxy): send both with
+  `Cache-Control: no-cache`, or purge both on every deploy. Such a cache keeps a file without
+  that header for its own default lifetime. The worker checks that the page comes from its own
+  build: with a stale page or a stale `sw.js` a new player gets no offline play, and a returning
+  player stays on the previous build;
+- put a new build in place in this order: `assets/` and the public files, then the page, then
+  `sw.js`. With the page first, a launch in between gets an empty page. Keep serving the
+  previous build's `assets/` after the switch, for example until the next deploy: a launch that
+  got the previous page just before the switch still loads them;
 - send no `Content-Security-Policy` with the game, or one that allows scripts and workers from
   `'self'` and `'wasm-unsafe-eval'` for the physics engine. A policy with `'strict-dynamic'` and a
   nonce blocks the game: its entry script carries no nonce.
 
 Desirable:
 
-- `Cache-Control: no-cache` on the page. Under the worker the browser revalidates the page
-  anyway. Without the worker, and in a cache in front of the server, a page with only
-  `Last-Modified` stays fresh by heuristic: a deploy shows later, and a stale page in a CDN fails
-  the install;
+- `Cache-Control: no-cache` on the page also with nothing in front of the server. Under the
+  worker the browser revalidates the page anyway. Without the worker, on a first visit or on
+  plain HTTP, a page with only `Last-Modified` stays fresh by heuristic, and a deploy shows later;
 - `application/wasm` for `.wasm`: with another type the physics engine loads by a slower path and
   logs a warning;
 - a long `max-age` for `assets/`: their names change with their content.

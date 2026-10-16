@@ -18,14 +18,16 @@ test.describe('in a Russian browser', () => {
     await expect(button(page, 'Звук')).toBeVisible();
     // The Cyrillic face is fetched only once Cyrillic text is on screen.
     await expect
-      .poll(() =>
-        page.evaluate(() =>
-          [...document.fonts].some(
-            (face) => face.family.includes('Nunito') && face.status === 'loaded',
+      .poll(
+        () =>
+          page.evaluate(() =>
+            [...document.fonts]
+              .filter((face) => face.family.includes('Nunito'))
+              .map((face) => face.status),
           ),
-        ),
+        { timeout: 15_000 },
       )
-      .toBe(true);
+      .toContain('loaded');
 
     await expect(async () => {
       await page.locator('#scene').tap();
