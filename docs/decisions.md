@@ -231,7 +231,8 @@ Without the parameter it costs about 0.8 kB gzipped and runs nothing.
 
 - The panel counts the intervals between its own animation frames, which is what the player
   sees, not the time a render call takes.
-- A hidden tab clears the last frame, so the pause does not count as one long frame.
+- Every visibility change clears the last frame, so neither the pause nor a frame the browser
+  scheduled before the tab hid counts as one long frame.
 - The flight numbers run from `flying` to the next state; their first frame includes the plan,
   which runs in the tap handler.
 - `prepare` shows only the first call per body: the engine records a body's fallbacks once, and

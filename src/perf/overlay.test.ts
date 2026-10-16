@@ -143,13 +143,27 @@ describe('startPerfOverlay', () => {
     expect(panel().textContent).toContain('flight 63 fps, worst 16 ms, slow 0/1');
   });
 
+  const setHidden = (hidden: boolean) => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: hidden });
+    document.dispatchEvent(new Event('visibilitychange'));
+  };
+
   it('does not count the time the tab was hidden as a frame', () => {
     const { frames } = host();
     frames(16, 16);
-    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
-    document.dispatchEvent(new Event('visibilitychange'));
-    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+    setHidden(true);
+    setHidden(false);
     frames(30_000, 16, REFRESH_MS);
     expect(panel().textContent).toContain(`worst ${REFRESH_MS} ms, slow 1/2`);
+  });
+
+  it('does not count a hidden time that a late frame started either', () => {
+    const { frames } = host();
+    frames(16);
+    setHidden(true);
+    frames(16);
+    setHidden(false);
+    frames(30_000, REFRESH_MS);
+    expect(panel().textContent).toContain(`worst ${REFRESH_MS} ms, slow 1/1`);
   });
 });

@@ -67,9 +67,8 @@ export function startPerfOverlay({ document, now, requestFrame }: PerfHost): Per
     }
   }
 
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) meter.pause();
-  });
+  // On showing too: a frame already scheduled may run after the tab hides.
+  document.addEventListener('visibilitychange', () => meter.pause());
   render();
   requestFrame(tick);
 
