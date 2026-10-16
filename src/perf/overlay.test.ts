@@ -202,6 +202,21 @@ describe('startPerfOverlay', () => {
     expect(panel().textContent).toContain('tap frame -');
   });
 
+  it('reads the end of the tap handler after the handler returns', async () => {
+    const { overlay, advance, frames } = host();
+    frames(16);
+    advance(20);
+    overlay.onState('flying');
+    // The rest of the handler, such as the launch sound, runs after the state change.
+    advance(30);
+    await handlerEnd();
+    frames(20, 20, 16);
+    overlay.onState('result');
+    frames(REFRESH_MS);
+    expect(panel().textContent).toContain('tap frame 40 ms');
+    expect(panel().textContent).toContain('last flight 63 fps, worst 16 ms, slow 0/1');
+  });
+
   it('skips an infinite stamp, which closes no tap and keeps the panel refreshing', async () => {
     const { overlay, advance, frames, stamp } = host();
     frames(16);
