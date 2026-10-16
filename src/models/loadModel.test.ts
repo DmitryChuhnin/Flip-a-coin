@@ -117,6 +117,25 @@ describe('loadModel', () => {
     expect(visual.getObjectByName('collider')).toBeUndefined();
   });
 
+  it('leaves a visual nested in the collider out of the body and still draws it', async () => {
+    const reach = Math.max(...POINTS.map((p) => Math.hypot(...p)));
+    const [x, y, z] = FACES[0]!.normal;
+    const relief: Vec3 = [x! * 0.8 * reach, y! * 0.8 * reach, z! * 0.8 * reach];
+    const data = buildGlb([
+      {
+        name: 'collider',
+        points: POINTS,
+        extras: { faces: FACES },
+        children: [{ name: 'visual', points: [...POINTS, relief] }],
+      },
+    ]);
+    const { visual, body } = await loadModel(data, D8);
+    expect(body.hull).toHaveLength(D8.hull.length);
+    expect(body.symmetries).toHaveLength(D8.symmetries.length);
+    expect(visual.getObjectByName('visual')).toBeDefined();
+    expect(visual.getObjectByName('collider')).toBeUndefined();
+  });
+
   it('accepts a coin with heads and tails', async () => {
     const coin = hullVectors(COIN_BODY.hull);
     const faces = COIN_BODY.faces.map((face) => ({ value: face.value, normal: [...face.normal] }));

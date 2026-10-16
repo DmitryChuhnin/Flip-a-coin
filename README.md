@@ -128,17 +128,30 @@ item, Y up, origin at the center of mass, in any size: the game scales it to the
   normal, for a d4 the direction of the vertex. It is in the frame of the glTF scene, Y up.
   Blender's exporter with +Y Up, its default, turns the meshes but copies custom properties as
   they are, so a script that reads a normal `(x, y, z)` in Blender, Z up, writes `(x, z, -y)`.
+  The exporter writes custom properties only with Include > Custom Properties checked, which it
+  is not by default.
 
-The body is the convex hull of the collider. Its corners are the points where three or more
-flat sides meet; points inside a side or on an edge, such as the outline of an engraved number,
-are left out. There may be at most 256 corners. Every rotation that maps the corners onto each
-other to 1e-5 of the size must map the normals onto each other to 1e-6, and these rotations must
-carry any face onto any other. A rotation found on the corners carries their error into the
-normals: corners off by 3e-7 of the size pass, off by 1e-6 they fail. Float32 coordinates of
-exact positions are within 1e-7, so the collider and the normals come from a script, not from
-placing by hand. With any value up the model must rest on a flat side with its center of mass
-above it. A model that breaks these rules is rejected with a `RangeError` that names the fault;
-a file that does not parse, with an `Error` whose `cause` is the loader's error.
+The body is the convex hull of the collider; points closer together than 1e-5 of the size count as
+one. Its corners are the points where three or more flat sides meet; points inside a side or on an
+edge, such as the outline of an engraved number, are left out. There may be at most 256 corners, at
+least 2e-3 of the size apart. The model's symmetries are the rotations that map the corners onto
+each other to 1e-3 of the size; each must also map the normals onto each other to 1e-3, and together
+they must carry any face onto any other. The game then moves the corners and the normals to exactly
+symmetric places. Each rotation is found from two pairs of corners and carries their error, so
+corners pass only up to about 2e-4 of the size off those places: at 1e-4 off every item passes, with
+normals computed from such a mesh, and at 1e-3 every item fails. Blender's Ico Sphere, up to 1.4e-5
+of the radius off, passes. Normals must be unit length to 1e-6. With any value up the model must
+rest on a flat side, the hull points within 1e-3 of the size of the lowest one, with its center of
+mass above it, and a tilt of less than 5° about an edge of that side must not tip it over. A model
+that breaks these rules is rejected with a `RangeError` that names the fault; a file that does not
+parse, with an `Error` whose `cause` is the loader's error.
+
+Bevels on the collider shrink its flat sides, and the two fallback tosses the game records for each
+item, with reduced motion and without, stop coming to rest on them. With the sides of a d6, d8, d12
+or d20 cut to 80% of their width all record both, at 60% the d12 and d20 fail the one without
+reduced motion, at 40% each fails one or both (`docs/decisions.md`, "A model takes its size and
+launch from the procedural item"). A collider with the item's full flat sides tosses like the
+procedural item; the bevels can stay on `visual`.
 
 ## Layout
 
