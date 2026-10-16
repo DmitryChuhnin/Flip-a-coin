@@ -171,9 +171,13 @@ online.
   while the old one serves the old page. Offline, on an error status or a redirect, or when the
   network is silent for `PAGE_TIMEOUT_MS`, the cached page answers.
 - The page request asks the server every time (`cache: 'no-cache'`). In the launch's own cache
-  mode a page served with `Last-Modified` and no `Cache-Control` counts as fresh by heuristic:
-  the HTTP cache answers without a request, and a deploy shows only at the launch after next, as
-  from the worker's cache. With `no-cache` an unchanged page costs one request answered with 304.
+  mode a page served with `Last-Modified` and no `Cache-Control` counts as fresh by heuristic,
+  in Chromium for a tenth of the time since `Last-Modified`: the HTTP cache answers without a
+  request, and a deploy shows only at the launch after next, as from the worker's cache. With
+  `no-cache` an unchanged page costs one request answered with 304. The init also makes the
+  server see `Sec-Fetch-Mode: same-origin` and the worker's URL as `Referer`. The request itself,
+  not its URL, goes to `fetch`: it keeps the redirect mode `manual`, and the redirect fallback
+  depends on it.
 - The page from the network is not cached. Under the old worker it belongs to the new build, and
   the old worker fetches the new build's files from the network because its cache lacks them;
   the cache stays one consistent build for offline launches.
