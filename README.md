@@ -25,6 +25,31 @@ Separate steps: `npm run typecheck`, `npm run lint`, `npm run format`, `npm test
 `npm run build`, `npm run preview`, `npm run test:e2e` (builds, then runs Playwright against the
 preview server).
 
+## Deploy
+
+`npm run build` writes the game to `dist/`, which the server serves at `/flip-a-coin/` (`base` in
+`vite.config.ts`). The reasons are in `docs/decisions.md`, "The game works offline through its
+own service worker".
+
+The server must:
+
+- answer `/flip-a-coin/` with the page and status 200, not a redirect. A redirect fails the
+  service worker's install, and the game then works online only;
+- serve every file of `dist/`: the install downloads all of them and fails on any error;
+- serve `sw.js` with a JavaScript MIME type: a browser refuses to register a worker of any other
+  type;
+- keep no old copy of the page or `sw.js` in a cache in front of it (CDN, proxy). A stale page
+  fails the install, a stale `sw.js` holds back an update.
+
+Desirable:
+
+- `Cache-Control: no-cache` on the page. Under the worker the browser revalidates the page
+  anyway; without it a page with only `Last-Modified` stays fresh by heuristic, and a deploy
+  shows later;
+- `application/wasm` for `.wasm`: with another type the physics engine loads by a slower path and
+  logs a warning;
+- a long `max-age` for `assets/`: their names change with their content.
+
 ## Layout
 
 - `src/main.ts`: entry point; WebGL2 check, render loop, pause while the tab is hidden.
