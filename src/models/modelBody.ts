@@ -35,6 +35,11 @@ export interface ModelBody<V extends string> {
  * must map the face directions onto each other to it; both are then made exactly symmetric.
  */
 const SNAP_TOLERANCE = 1e-3;
+/**
+ * Each rotation is found from two pairs of corners, so corners pass only up to about this share;
+ * measured in docs/decisions.md, "A model takes its size and launch from the procedural item".
+ */
+const CORNER_LIMIT = 2e-4;
 /** Face normals must be unit to this, as in `defineBody`; only their directions are aligned. */
 const UNIT_TOLERANCE = 1e-6;
 /**
@@ -116,6 +121,7 @@ function symmetrize<V extends string>(
   faces: readonly Face<V>[],
 ): { symmetries: Quat[]; corners: Vec3[]; faces: Face<V>[] } {
   const reach = corners.reduce((max, p) => Math.max(max, length3(p)), 0);
+  const cornersOff = `its corners may be more than about ${CORNER_LIMIT.toExponential()} of its size off their symmetric places, or its origin off its center of mass`;
   // Rotations found to SNAP_TOLERANCE would take such corners for one another.
   const gap = corners.reduce(
     (min, p, i) => corners.slice(i + 1).reduce((m, q) => Math.min(m, length3(sub(p, q))), min),
@@ -138,7 +144,7 @@ function symmetrize<V extends string>(
   // corners only to about SNAP_TOLERANCE.
   const product = moves.map((h) => moves.map((g) => byKey.get(h[g[a]!]! * n + h[g[b]!]!) ?? -1));
   if (product.some((row) => row.includes(-1))) {
-    throw new RangeError('The model corners are too far off their symmetric places to align them');
+    throw new RangeError(`The model cannot be aligned to its symmetries; ${cornersOff}`);
   }
 
   // Averaging h⁻¹·(h·g) over the group takes a near group to an exact one, squaring its error;
@@ -189,14 +195,14 @@ function symmetrize<V extends string>(
   const tolerance = SNAP_TOLERANCE.toExponential();
   if (!carried) {
     throw new RangeError(
-      `The face normals do not follow the symmetries of the corners to ${tolerance}`,
+      `The model's face normals do not follow the symmetries of its corners to ${tolerance}; they may point off their sides, or ${cornersOff}`,
     );
   }
   const orbit = new Set(turns.map((turn) => turn[0]));
   const missing = faces.find((_, v) => !orbit.has(v));
   if (missing) {
     throw new RangeError(
-      `No rotation of the model carries the face of ${faces[0]!.value} onto the face of ${missing.value}; its corners may be too far off their symmetric places`,
+      `No rotation of the model carries the face of ${faces[0]!.value} onto the face of ${missing.value}; ${cornersOff}`,
     );
   }
   const aligned = faces.map((face, v) => {
