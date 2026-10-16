@@ -7,6 +7,7 @@ import { unlockOnGestures } from './audio/gestures';
 import { createSound, type Voice } from './audio/sound';
 import { startGame, type LoadedItem } from './game';
 import { createItem, type ItemName } from './items';
+import { startPerfOverlay } from './perf/overlay';
 import { createContactShadow } from './scene/contactShadow';
 import { createScene, type SceneHandle } from './scene/createScene';
 import { itemOf, readSettings, writeSettings } from './settings';
@@ -67,6 +68,15 @@ function startScene(canvas: HTMLCanvasElement, announcer: HTMLElement, caption: 
     return;
   }
 
+  // Frame rate and planning time on screen, so a phone can be checked without DevTools.
+  const perf = new URLSearchParams(window.location.search).has('perf')
+    ? startPerfOverlay({
+        document,
+        now: () => performance.now(),
+        requestFrame: (callback) => requestAnimationFrame(callback),
+      })
+    : null;
+
   // Each item is built once; switching back reuses its model and symmetry tables.
   const loaded = new Map<ItemName, LoadedItem>();
   const loadItem = (name: ItemName): LoadedItem => {
@@ -111,9 +121,13 @@ function startScene(canvas: HTMLCanvasElement, announcer: HTMLElement, caption: 
     initialItem: itemOf(settings),
     loadItem,
     // Separate chunk: the scene shows while the physics engine downloads.
-    loadEngine: () => import('./toss/engine').then((engine) => engine.createTossEngine()),
+    loadEngine: () =>
+      import('./toss/engine')
+        .then((engine) => engine.createTossEngine())
+        .then((engine) => perf?.time(engine) ?? engine),
     reducedMotion: prefersReducedMotion(),
     onStateChange: (state) => {
+      perf?.onState(state);
       controls?.setLocked(state === 'flying' || state === 'error');
       if (state === 'error') showEngineError();
     },

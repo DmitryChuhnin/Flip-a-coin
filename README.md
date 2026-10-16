@@ -70,6 +70,10 @@ Desirable:
 - `src/audio/sound.ts`: synthesized launch, hit and rest sounds, audio unlock, vibration. The
   audio state is `data-audio` on `<body>`. `src/audio/gestures.ts`: the events that unlock audio.
 - `src/strings.ts`: interface text in English and Russian, and the language choice.
+- `src/perf/`: the panel that `?perf` on the page URL adds, for checking a phone without DevTools:
+  frame rate, the longest frame and the slow frames over a sliding window and over the last
+  flight (`meter.ts`), how long the last toss plan took, and how long the engine took to record
+  the fallbacks of the last item it had not seen.
 - `src/pwa/serviceWorker.ts`: source of `sw.js`, which the build emits with the list of files to
   precache. `public/`: the web app manifests (English and Russian) and icons.
 - `src/scene/createScene.ts`: renderer, camera, resize handling.

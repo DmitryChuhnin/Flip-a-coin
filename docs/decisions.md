@@ -220,6 +220,21 @@ plain icon unmasked, and with the background it is a lilac square. Android crops
 icon to its own shape, so the square has to be filled, with the coin inside the safe zone, a
 circle of 80% of the side. iOS fills a transparent touch icon with black.
 
+## The `?perf` panel ships in the production build
+
+`?perf` on the page URL adds a panel with the frame rate and the toss planning time
+(`src/perf/`). The 60 fps target is checked on a phone against the deployed game, where DevTools
+need a cable and a desktop browser; behind `import.meta.env.DEV` the panel would not exist there.
+Without the parameter it costs about 0.8 kB gzipped and runs nothing.
+
+- The panel counts the intervals between its own animation frames, which is what the player
+  sees, not the time a render call takes.
+- A hidden tab clears the last frame, so the pause does not count as one long frame.
+- The flight numbers run from `flying` to the next state; their first frame includes the plan,
+  which runs in the tap handler.
+- `prepare` shows only the first call per body: the engine records a body's fallbacks once, and
+  a later call for an item switched back to returns at once.
+
 ## three.js is a chunk of its own
 
 three.js is about 550 kB minified, one module the first frame needs, so splitting it further
