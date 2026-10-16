@@ -36,8 +36,9 @@ export function upFace(q: Quat, faces: readonly Face[]): UpFace {
 export type RemapTable = readonly (readonly (readonly Quat[])[])[];
 
 /**
- * Remap candidates for every pair of faces, computed once per body. Throws if some pair has
- * none: the symmetries are not transitive on the faces, so some outcome could not be shown.
+ * Remap candidates for every pair of faces, computed once per body. Throws a RangeError if some
+ * pair has none: the symmetries are not transitive on the faces, so some outcome could not be
+ * shown.
  */
 export function buildRemapTable(faces: readonly Face[], symmetries: readonly Quat[]): RemapTable {
   return faces.map((landed, l) =>
@@ -46,7 +47,7 @@ export function buildRemapTable(faces: readonly Face[], symmetries: readonly Qua
         (r) => length3(sub(rotate(r, desired.normal), landed.normal)) <= EPSILON,
       );
       if (candidates.length === 0) {
-        throw new Error(`No symmetry maps face ${d} onto face ${l}`);
+        throw new RangeError(`No symmetry maps face ${d} onto face ${l}`);
       }
       return candidates;
     }),
