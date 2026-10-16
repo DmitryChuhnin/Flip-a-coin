@@ -33,19 +33,24 @@ own service worker".
 
 The server must:
 
+- serve the game over HTTPS: a browser runs a service worker only in a secure context, and on
+  plain HTTP the game works online only;
 - answer `/flip-a-coin/` with the page and status 200, not a redirect. A redirect fails the
-  service worker's install, and the game then works online only;
-- serve every file of `dist/`: the install downloads all of them and fails on any error;
-- serve `sw.js` with a JavaScript MIME type: a browser refuses to register a worker of any other
-  type;
+  service worker's install: a new player gets no offline play, a returning player stays on the
+  previous build;
+- answer `sw.js` with status 200 and a JavaScript MIME type. A browser neither registers nor
+  updates a worker from a redirect or a file of another type;
+- serve every file the install downloads: the page, `assets/` and the public files (manifests,
+  icons). One failed download fails the install;
 - keep no old copy of the page or `sw.js` in a cache in front of it (CDN, proxy). A stale page
   fails the install, a stale `sw.js` holds back an update.
 
 Desirable:
 
 - `Cache-Control: no-cache` on the page. Under the worker the browser revalidates the page
-  anyway; without it a page with only `Last-Modified` stays fresh by heuristic, and a deploy
-  shows later;
+  anyway. Without the worker, and in a cache in front of the server, a page with only
+  `Last-Modified` stays fresh by heuristic: a deploy shows later, and a stale page in a CDN fails
+  the install;
 - `application/wasm` for `.wasm`: with another type the physics engine loads by a slower path and
   logs a warning;
 - a long `max-age` for `assets/`: their names change with their content.
