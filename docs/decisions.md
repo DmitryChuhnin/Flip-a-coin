@@ -176,13 +176,13 @@ online.
   `Pragma: no-cache`, an `Expires` that is a date or `0`, or `Cache-Control` with `max-age`,
   `no-cache`, `no-store` or `must-revalidate`; `Cache-Control: public` alone does not rule that
   out, nor does an `Expires` Chromium cannot parse. Chromium sets the lifetime once per response,
-  to a tenth of the gap between its `Date` and `Last-Modified`; both rules are from its `main`
-  source as of 2026-10-16. Within that lifetime the HTTP cache answers without a request, and a
-  deploy shows only at the launch after next, as from the worker's cache. With `no-cache` an
-  unchanged page costs one request answered with 304. The second argument also makes the server
-  see `Sec-Fetch-Mode: same-origin` and the worker's URL as `Referer`. The request itself, not its
-  URL, goes to `fetch`: it keeps the redirect mode `manual`, and the redirect fallback depends on
-  it.
+  to a tenth of the gap between its `Date` and `Last-Modified`. Both rules are from its `main`
+  source as of 2026-10-16; older Chromium versions were not checked. Within that lifetime the
+  HTTP cache answers without a request, and a deploy shows only at the launch after next, as from
+  the worker's cache. With `no-cache` an unchanged page costs one request answered with 304. The
+  second argument also makes the server see `Sec-Fetch-Mode: same-origin` and the worker's URL as
+  `Referer`. The request itself, not its URL, goes to `fetch`: it keeps the redirect mode
+  `manual`, and the redirect fallback depends on it.
 - The page from the network is not cached. Under the old worker it belongs to the new build, and
   the old worker fetches the new build's files from the network because its cache lacks them;
   the cache stays one consistent build for offline launches.

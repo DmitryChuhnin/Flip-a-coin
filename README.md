@@ -40,27 +40,38 @@ The server must:
   previous build;
 - answer `sw.js` with status 200 and a JavaScript MIME type: a browser neither registers nor
   updates a worker from a redirect or a file of another type. The scripts in `assets/` need a
-  JavaScript MIME type too: a browser refuses a module script of another type;
+  JavaScript MIME type too: a browser refuses a module script of another type. The stylesheets
+  in `assets/` need `text/css`: the page is in standards mode, where a browser ignores a
+  stylesheet of another type, and the game runs without its styles and fonts;
 - serve every file the install downloads: the page (`index.html`), `assets/` and the public
   files (manifests, icons). One failed download fails the install;
 - answer a file that is not there with 404, not with the page. The install would store the page
   under that file's name, and the worker would answer with it in place of the file. A file in
   `assets/` stays replaced through later deploys while its name stays the same;
 - keep no old copy of the page, `sw.js` or the public files in a cache in front of it (CDN,
-  proxy): send them with `Cache-Control: no-cache`, or purge them on every deploy. Such a cache
-  keeps a file that has no `Cache-Control` for its own default lifetime, and the worker's install
-  bypasses only the browser's own cache. The install checks that the page loads its own build's
-  entry script, so a stale `sw.js` with a fresh page, or a stale page with a fresh `sw.js`, fails
-  it: a new player gets no offline play. A returning player's browser sees no new worker under a
-  stale `sw.js` and fails to install it under a stale page, so their offline launches stay on the
-  previous build; a stale page keeps online launches on it too. A stale manifest or icon stays in
-  the worker's cache until a later install downloads a fresh copy;
-- change the `Last-Modified` or `ETag` of the page and `sw.js` on every deploy, as copying them
-  with a new modification time does. The browser's check for a new worker and the worker's page
-  request are conditional. nginx builds `Last-Modified` from the modification time and `ETag` from
-  it and the size, and the page and `sw.js` often keep their size from build to build: a deploy
-  that keeps modification times keeps both validators, both requests get 304, and players stay on
-  the previous build;
+  proxy): send them with `Cache-Control: no-cache`, or purge them on every deploy once `sw.js` is
+  in place, as a launch before that puts the old copy back. A cache keeps the page under
+  `/flip-a-coin/`, the URL players and the install request, so a purge of `index.html` alone
+  leaves it: purge `/flip-a-coin/` itself with its query strings (`?perf`), or the whole path.
+  For a file's `max-age`, or for its own default lifetime when the file has neither `max-age`
+  nor `no-cache`, `no-store` or `private`, such a cache answers without asking the server, and
+  the worker's install bypasses only the browser's own cache. The install checks that the page
+  loads its own build's entry script, so a stale `sw.js` with a fresh page, or a stale page with
+  a fresh `sw.js`, fails it: a new player gets no offline play. A returning player's browser sees
+  no new worker under a stale `sw.js` and fails to install it under a stale page, so their
+  offline launches stay on the previous build; a stale page keeps online launches on it too. A
+  stale manifest or icon stays in the worker's cache until a later install downloads a fresh
+  copy;
+- give the page, `sw.js` and each public file a new `Last-Modified` or `ETag` whenever a deploy
+  changes that file. A fresh build does this whether it is copied with its own modification
+  times (`rsync -a`, `cp -p`) or with new ones. The browser's check for a new worker, the
+  worker's page request and a CDN's check under `no-cache` are conditional. nginx builds
+  `Last-Modified` from the modification time and `ETag` from it and the size, and these files
+  often keep their size from build to build: a deploy that gives every build the same
+  modification times (an archive or an image with fixed timestamps) keeps both validators. The
+  requests then get 304: players stay on the previous build, a CDN gives its page to new players
+  too and an old manifest or icon to the install. Once the server drops that build's `assets/`,
+  a player who does not have them in the worker's cache gets an empty page;
 - put a new build in place in this order: `assets/` and the public files, then the page, then
   `sw.js`. With the page first, a launch in between gets an empty page. Keep serving the
   previous build's `assets/` after the switch, for example until the next deploy: a launch that
@@ -69,20 +80,23 @@ The server must:
   `script-src 'self' 'wasm-unsafe-eval'`, `connect-src 'self'`, `style-src 'self'`,
   `font-src 'self'`, `img-src 'self'`, `manifest-src 'self'` and `worker-src 'self'`. The
   physics engine compiles WebAssembly and fetches its `.wasm`: without `'wasm-unsafe-eval'` or
-  `connect-src 'self'` the game shows the engine error. The worker's install fetches every file,
-  and a policy without `worker-src` takes the worker's rule from `child-src`, then `script-src`:
-  without `connect-src 'self'`, or with a `child-src` that leaves out `'self'` and no
-  `worker-src 'self'`, the worker does not install and the game has no offline play.
-  Without the others it runs without its styles, fonts, icons or manifest. A policy with
-  `'strict-dynamic'` and a nonce blocks the game: its entry script carries no nonce.
+  `connect-src 'self'` the game shows the engine error. The worker's install fetches every file
+  under the policy sent with `sw.js`: with a policy there that does not allow `connect-src 'self'`
+  no worker installs or updates, a new player gets no offline play, and a returning player's
+  offline launches stay on the previous build. A page's policy without `worker-src` takes the
+  worker's rule from `child-src`, then `script-src`: with a `child-src` that leaves out `'self'`
+  and no `worker-src 'self'`, the page cannot register the worker, and a new player gets no
+  offline play, while an installed worker still updates. Without the others the game runs
+  without its styles, fonts, icons or manifest. A policy with `'strict-dynamic'` and a nonce
+  blocks the game: its entry script carries no nonce.
 
 Desirable:
 
 - `Cache-Control: no-cache` on the page also with nothing in front of the server. Under the
-  worker the browser revalidates the page anyway. Without a worker, on plain HTTP or after a
-  failed install, a page sent with `Last-Modified` and no `Cache-Control` stays fresh by
-  heuristic, also with an `ETag`, and a deploy shows later. `docs/decisions.md` lists the headers
-  that rule the heuristic out;
+  worker the browser revalidates the page anyway. Without a worker, on plain HTTP, after a failed
+  install or in a browser that runs none, a page sent with `Last-Modified` stays fresh by
+  heuristic, and a deploy shows later. Neither an `ETag` nor `Cache-Control: public` alone rules
+  that out; `docs/decisions.md` lists the headers that do;
 - `application/wasm` for `.wasm`: with another type the physics engine loads by a slower path and
   logs a warning;
 - a long `max-age` for `assets/`: their names change with their content.
