@@ -176,7 +176,7 @@ describe('modelBody', () => {
     const points = jitter(model.points, 1e-3);
     expect(() => modelBody({ ...model, points }, template)).toThrow(RangeError);
     expect(() => modelBody({ ...model, points }, template)).toThrow(
-      /No rotation of the model carries the face of .+; its corners may be too far off/,
+      /No rotation of the model carries the face of .+; its corners may be more than about 2e-4 of/,
     );
   });
 
@@ -417,7 +417,7 @@ describe('modelBody', () => {
           ],
         })),
       },
-      /The face normals do not follow the symmetries of the corners to 1e-3/,
+      /to 1e-3; they may point off their sides, or its corners may be more than about 2e-4 of its/,
     ],
     [
       'an octahedron whose tips are low pyramids, 9e-4 of the reach high and 0.03 across',
@@ -463,7 +463,7 @@ describe('modelBody', () => {
     [
       'a corner off by 8.7e-4 of the reach, which some symmetries match and others do not',
       { points: [[0.010015, 0.01, 0.01], ...CUBE.slice(0, 7)], faces: AXIS_FACES },
-      /too far off their symmetric places/,
+      /cannot be aligned to its symmetries; its corners may be more than about 2e-4 of its size off/,
     ],
     [
       'a cube with corners cut 1e-3 of the reach deep, 1.4e-3 apart, closer than 2e-3',
@@ -483,7 +483,7 @@ describe('modelBody', () => {
     [
       'a collider whose origin is off the center',
       { points: CUBE.map((p): Vec3 => [p[0] + 0.005, p[1], p[2]]), faces: AXIS_FACES },
-      /No rotation of the model carries the face of 1 onto/,
+      /No rotation of the model carries the face of 1 onto .+, or its origin off its center of mass/,
     ],
   ])('rejects %s with a RangeError', (_, shape, message) => {
     expect(() => modelBody(shape, D6)).toThrow(RangeError);
