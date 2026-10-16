@@ -100,8 +100,8 @@ export function modelBody<V extends string>(
 
 /**
  * The rotations that map the corners onto themselves to SNAP_TOLERANCE, made into an exact group,
- * with the corners and the face directions averaged over it. Face directions that some rotation
- * does not carry onto another stay as given, for `defineBody` to reject.
+ * with the corners and the face directions averaged over it. Throws unless the group carries the
+ * face directions onto each other and one face onto every other.
  */
 function symmetrize<V extends string>(
   corners: readonly Vec3[],
@@ -166,22 +166,35 @@ function symmetrize<V extends string>(
   const exact = corners.map((_, i) => average((_, k) => corners[moves[k]![i]!]!));
 
   const normals = faces.map((face) => face.normal);
+  // Aligning would hide a normal off unit length, so `defineBody` names it.
+  if (!normals.every((n) => Math.abs(length3(n) - 1) <= UNIT_TOLERANCE)) {
+    return { symmetries: group, corners: exact, faces: [...faces] };
+  }
   const turns = group.map((q) => normals.map((n) => nearest(normals, rotate(q, n))));
-  const carried =
-    normals.every((n) => Math.abs(length3(n) - 1) <= UNIT_TOLERANCE) &&
-    turns.every(
-      (turn, k) =>
-        new Set(turn).size === normals.length &&
-        turn.every(
-          (m, v) => length3(sub(rotate(group[k]!, normals[v]!), normals[m]!)) <= SNAP_TOLERANCE,
-        ),
+  const carried = turns.every(
+    (turn, k) =>
+      new Set(turn).size === normals.length &&
+      turn.every(
+        (m, v) => length3(sub(rotate(group[k]!, normals[v]!), normals[m]!)) <= SNAP_TOLERANCE,
+      ),
+  );
+  const tolerance = SNAP_TOLERANCE.toExponential();
+  if (!carried) {
+    throw new RangeError(
+      `The face normals do not follow the symmetries of the corners to ${tolerance}`,
     );
-  const aligned = carried
-    ? faces.map((face, v) => {
-        const sum = average((_, k) => normals[turns[k]![v]!]!);
-        return { value: face.value, normal: scaled3(sum, 1 / length3(sum)) };
-      })
-    : [...faces];
+  }
+  const orbit = new Set(turns.map((turn) => turn[0]));
+  const missing = faces.find((_, v) => !orbit.has(v));
+  if (missing) {
+    throw new RangeError(
+      `No rotation that maps the model onto itself to ${tolerance} of its size carries the face of ${faces[0]!.value} onto the face of ${missing.value}`,
+    );
+  }
+  const aligned = faces.map((face, v) => {
+    const sum = average((_, k) => normals[turns[k]![v]!]!);
+    return { value: face.value, normal: scaled3(sum, 1 / length3(sum)) };
+  });
   return { symmetries: group, corners: exact, faces: aligned };
 }
 

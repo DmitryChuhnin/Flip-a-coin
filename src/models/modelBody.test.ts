@@ -136,6 +136,9 @@ describe('modelBody', () => {
     const model = asModel(template);
     const points = jitter(model.points, 1e-3);
     expect(() => modelBody({ ...model, points }, template)).toThrow(RangeError);
+    expect(() => modelBody({ ...model, points }, template)).toThrow(
+      /No rotation that maps the model onto itself to 1e-3 of its size carries the face of/,
+    );
   });
 
   it("accepts a d20 made from Blender's Ico Sphere, up to 1.4e-5 of the radius off", () => {
@@ -314,7 +317,7 @@ describe('modelBody', () => {
           ],
         })),
       },
-      /faces onto faces/,
+      /The face normals do not follow the symmetries of the corners to 1e-3/,
     ],
     ['a collider of three points', { points: CUBE.slice(0, 3), faces: AXIS_FACES }, /four finite/],
     [
@@ -345,7 +348,7 @@ describe('modelBody', () => {
     [
       'a collider with one corner moved',
       { points: [[0.011, 0.01, 0.01], ...CUBE.slice(0, 7)], faces: AXIS_FACES },
-      /No symmetry maps|faces onto faces/,
+      /No rotation that maps the model onto itself to 1e-3 of its size carries the face of 1/,
     ],
     [
       'a corner off by 8.7e-4 of the reach, which some symmetries match and others do not',
@@ -370,7 +373,7 @@ describe('modelBody', () => {
     [
       'a collider whose origin is off the center',
       { points: CUBE.map((p): Vec3 => [p[0] + 0.005, p[1], p[2]]), faces: AXIS_FACES },
-      /No symmetry maps|faces onto faces/,
+      /No rotation that maps the model onto itself to 1e-3 of its size carries the face of 1/,
     ],
   ])('rejects %s with a RangeError', (_, shape, message) => {
     expect(() => modelBody(shape, D6)).toThrow(RangeError);
