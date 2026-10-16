@@ -56,14 +56,23 @@ describe('FrameMeter', () => {
     expect(meter.endSpan()).toBeNull();
     const atMs = run(meter, 0, [16]);
     meter.startSpan();
-    run(meter, atMs + 40, Array<number>(99).fill(20));
+    run(meter, atMs + 40, Array<number>(99).fill(16));
     expect(meter.endSpan()).toEqual({
-      fps: (100 * 1000) / (40 + 99 * 20),
+      fps: (100 * 1000) / (40 + 99 * 16),
       worstMs: 40,
       slow: 1,
       frames: 100,
     });
     expect(meter.endSpan()).toBeNull();
+  });
+
+  it('leaves a pause out of a span', () => {
+    const meter = new FrameMeter();
+    meter.startSpan();
+    const atMs = run(meter, 0, [16, 16]);
+    meter.pause();
+    run(meter, atMs + 30_000, [16]);
+    expect(meter.endSpan()).toMatchObject({ frames: 3, worstMs: 16 });
   });
 
   it('gives an empty span when no frame arrived in it', () => {

@@ -1,7 +1,7 @@
 /** Frames older than this leave the running numbers. */
 export const WINDOW_MS = 1000;
-/** A frame this long or longer drops below 40 fps, a visible stutter at a 60 fps target. */
-export const SLOW_FRAME_MS = 25;
+/** A frame this long or longer runs below 50 fps: at 60, 90 and 120 Hz it missed a 60 fps frame. */
+export const SLOW_FRAME_MS = 20;
 
 export interface FrameNumbers {
   /** Frames per second; null until two frames arrive. */

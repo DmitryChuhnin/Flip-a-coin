@@ -46,11 +46,20 @@ describe('startPerfOverlay', () => {
     const { frames } = host();
     frames(16);
     expect(panel().textContent).toContain('last 1 s -');
-    frames(20, 30);
+    frames(17, 30);
     expect(panel().textContent).toContain('last 1 s -');
     frames(REFRESH_MS);
     expect(panel().textContent).toContain(`worst ${REFRESH_MS} ms, slow 2/3`);
   });
+
+  const thrown = (run: () => unknown) => {
+    try {
+      run();
+    } catch (error) {
+      return error;
+    }
+    throw new Error('did not throw');
+  };
 
   it('times plan and prepare and passes their results and errors through', () => {
     const { overlay, advance, frames } = host();
@@ -75,9 +84,41 @@ describe('startPerfOverlay', () => {
     expect(engine.plan).toHaveBeenCalledWith(BODY, START, true);
     frames(REFRESH_MS);
     expect(panel().textContent).toContain('plan 12 ms, prepare 80 ms');
-    expect(() => timed.plan(BODY, START, false)).toThrow(failure);
+    expect(thrown(() => timed.plan(BODY, START, false))).toBe(failure);
     frames(REFRESH_MS);
     expect(panel().textContent).toContain('plan 7 ms, prepare 80 ms');
+  });
+
+  it('shows the first prepare of each body, not the instant repeats', () => {
+    const { overlay, advance, frames } = host();
+    const engine = { prepare: vi.fn(() => void advance(80)), plan: vi.fn() } as TossEngine;
+    const timed = overlay.time(engine);
+    timed.prepare(BODY);
+    vi.mocked(engine.prepare).mockImplementation(() => void advance(1));
+    timed.prepare(BODY);
+    expect(engine.prepare).toHaveBeenCalledTimes(2);
+    frames(REFRESH_MS);
+    expect(panel().textContent).toContain('prepare 80 ms');
+    timed.prepare({ ...BODY });
+    frames(REFRESH_MS);
+    expect(panel().textContent).toContain('prepare 1 ms');
+  });
+
+  it('passes a prepare error through and times the next prepare of that body', () => {
+    const { overlay, advance, frames } = host();
+    const failure = new RangeError('broken fallback');
+    const engine = { prepare: vi.fn(), plan: vi.fn() } as TossEngine;
+    vi.mocked(engine.prepare)
+      .mockImplementationOnce(() => {
+        advance(30);
+        throw failure;
+      })
+      .mockImplementationOnce(() => void advance(90));
+    const timed = overlay.time(engine);
+    expect(thrown(() => timed.prepare(BODY))).toBe(failure);
+    timed.prepare(BODY);
+    frames(REFRESH_MS);
+    expect(panel().textContent).toContain('prepare 90 ms');
   });
 
   it('counts the frames of a flight and keeps them after landing', () => {
@@ -93,7 +134,7 @@ describe('startPerfOverlay', () => {
     expect(panel().textContent).toContain('flight 42 fps');
   });
 
-  it('ends a flight on the engine error too', () => {
+  it('ends a flight on whatever state follows it', () => {
     const { overlay, frames } = host();
     overlay.onState('flying');
     frames(16, 16);

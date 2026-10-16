@@ -1,6 +1,6 @@
 import type { TossState } from '../game';
 import type { TossEngine } from '../toss/engine';
-import { FrameMeter, type FrameNumbers } from './meter';
+import { FrameMeter, WINDOW_MS, type FrameNumbers } from './meter';
 
 /** How often the text changes; faster is unreadable and costs a layout per frame. */
 export const REFRESH_MS = 250;
@@ -43,7 +43,7 @@ export function startPerfOverlay({ document, now, requestFrame }: PerfHost): Per
 
   function render(): void {
     panel.textContent = [
-      framesLine('last 1 s', meter.last()),
+      framesLine(`last ${WINDOW_MS / 1000} s`, meter.last()),
       framesLine('flight', flight),
       `plan ${ms(planMs)}, prepare ${ms(prepareMs)}`,
     ].join('\n');
@@ -73,14 +73,20 @@ export function startPerfOverlay({ document, now, requestFrame }: PerfHost): Per
   render();
   requestFrame(tick);
 
+  // The engine records a body's fallbacks once; a later prepare of that body returns at once.
+  const prepared = new WeakSet<object>();
+
   return {
     time(engine) {
       return {
-        prepare: (body) =>
+        prepare: (body) => {
+          if (prepared.has(body)) return engine.prepare(body);
           measure(
             () => engine.prepare(body),
             (value) => (prepareMs = value),
-          ),
+          );
+          prepared.add(body);
+        },
         plan: (body, start, reducedMotion) =>
           measure(
             () => engine.plan(body, start, reducedMotion),
