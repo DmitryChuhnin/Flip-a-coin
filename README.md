@@ -25,6 +25,39 @@ Separate steps: `npm run typecheck`, `npm run lint`, `npm run format`, `npm test
 `npm run build`, `npm run preview`, `npm run test:e2e` (builds, then runs Playwright against the
 preview server).
 
+## Deploy
+
+`npm run build` writes the game to `dist/`, which the server serves at `/flip-a-coin/` (`base` in
+`vite.config.ts`). The reasons are in `docs/decisions.md`, "The game works offline through its
+own service worker".
+
+The server must:
+
+- serve the game over HTTPS: a browser runs a service worker only in a secure context, and on
+  plain HTTP the game works online only;
+- answer `/flip-a-coin/` with the page and status 200, not a redirect. A redirect fails the
+  service worker's install: a new player gets no offline play, a returning player stays on the
+  previous build;
+- answer `sw.js` with status 200 and a JavaScript MIME type. A browser neither registers nor
+  updates a worker from a redirect or a file of another type;
+- serve every file the install downloads: the page, `assets/` and the public files (manifests,
+  icons). One failed download fails the install;
+- keep no old copy of the page or `sw.js` in a cache in front of it (CDN, proxy). A stale page
+  fails the install, a stale `sw.js` holds back an update;
+- send no `Content-Security-Policy` with the game, or one that allows scripts and workers from
+  `'self'` and `'wasm-unsafe-eval'` for the physics engine. A policy with `'strict-dynamic'` and a
+  nonce blocks the game: its entry script carries no nonce.
+
+Desirable:
+
+- `Cache-Control: no-cache` on the page. Under the worker the browser revalidates the page
+  anyway. Without the worker, and in a cache in front of the server, a page with only
+  `Last-Modified` stays fresh by heuristic: a deploy shows later, and a stale page in a CDN fails
+  the install;
+- `application/wasm` for `.wasm`: with another type the physics engine loads by a slower path and
+  logs a warning;
+- a long `max-age` for `assets/`: their names change with their content.
+
 ## Layout
 
 - `src/main.ts`: entry point; WebGL2 check, render loop, pause while the tab is hidden.
