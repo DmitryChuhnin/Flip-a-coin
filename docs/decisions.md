@@ -320,9 +320,9 @@ The physics chunk is loaded with a dynamic import, so the scene renders before i
 ## A model takes its size and launch from the procedural item
 
 `modelBody` (`src/models/`) checks a model against the procedural item of the same name, which
-it would replace. A model file is in meters and the game is not (see "Physics world scale"), and
-the launch profiles, the close-up camera and the walls are tuned to the procedural sizes, so the
-model is scaled until its reach matches the procedural one. Density, launch profiles and the
+it would replace. Models come in any size, glTF counts in meters and the game does not (see
+"Physics world scale"), and the launch profiles, close-up camera and walls are tuned to the
+procedural sizes, so the model is scaled to the procedural reach. Density, launch profiles and the
 touchdown height on an edge come from the procedural item; the height lying on a face comes from
 the model's hull. The model starts with the same outcome up, without the turn about the vertical
 that a procedural die gets for reading its number: where a model prints it is not known.
@@ -350,8 +350,9 @@ checks (an octahedron with a cube's six directions), and so does a coin sheared 
 mass is beyond its base; no toss rests with either up, and a test shows that recording the fallback
 toss fails for both.
 
-Normals are read in the glTF scene's frame, not converted from Blender's: the file does not say
-what wrote it, and on a d6 or d8 normals turned by the Z-up swap pass every check while naming
+Normals are read in the glTF scene's frame, not converted from Blender's: their frame depends on
+the script that wrote the property, which the file's `asset.generator` does not name, and on a d6
+or d8 normals turned by the Z-up swap of Blender's exporter pass every check while naming
 the wrong sides. A file that does not parse rejects with an `Error` that has the loader's error
 as its cause, since the loader throws RangeErrors of its own on a truncated file.
 

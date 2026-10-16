@@ -128,6 +128,8 @@ item, Y up, origin at the center of mass, in any size: the game scales it to the
   normal, for a d4 the direction of the vertex. It is in the frame of the glTF scene, Y up.
   Blender's exporter with +Y Up, its default, turns the meshes but copies custom properties as
   they are, so a script that reads a normal `(x, y, z)` in Blender, Z up, writes `(x, z, -y)`.
+  The exporter writes custom properties only with Include > Custom Properties checked, which it
+  is not by default.
 
 The body is the convex hull of the collider. Its corners are the points where three or more
 flat sides meet; points inside a side or on an edge, such as the outline of an engraved number,
