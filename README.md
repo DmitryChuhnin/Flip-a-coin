@@ -43,7 +43,10 @@ The server must:
 - serve every file the install downloads: the page, `assets/` and the public files (manifests,
   icons). One failed download fails the install;
 - keep no old copy of the page or `sw.js` in a cache in front of it (CDN, proxy). A stale page
-  fails the install, a stale `sw.js` holds back an update.
+  fails the install, a stale `sw.js` holds back an update;
+- send no `Content-Security-Policy` with the game, or one that allows scripts and workers from
+  `'self'` and `'wasm-unsafe-eval'` for the physics engine. A policy with `'strict-dynamic'` and a
+  nonce blocks the game: its entry script carries no nonce.
 
 Desirable:
 
