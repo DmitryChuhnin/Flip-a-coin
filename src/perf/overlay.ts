@@ -130,6 +130,8 @@ export function startPerfOverlay({ document, now, requestFrame }: PerfHost): Per
         queueMicrotask(() => (pending.endMs = now()));
       } else if (flying) {
         flying = false;
+        // A flight that ended before its tap frame has none; the previous one is another toss's.
+        if (tap) tapMs = null;
         tap = null;
         flight = meter.endSpan();
       }

@@ -184,7 +184,7 @@ describe('startPerfOverlay', () => {
     expect(panel().textContent).toContain('last flight 63 fps, worst 16 ms, slow 0/1');
   });
 
-  it('drops a tap whose flight ended before its frame came', async () => {
+  it('shows no tap frame for a flight that ended before its frame came', async () => {
     const { overlay, advance, frames } = host();
     frames(16);
     advance(20);
@@ -199,7 +199,7 @@ describe('startPerfOverlay', () => {
     await handlerEnd();
     frames(16, REFRESH_MS);
     expect(panel().textContent).toContain('last flight -');
-    expect(panel().textContent).toContain('tap frame 40 ms');
+    expect(panel().textContent).toContain('tap frame -');
   });
 
   it('skips an infinite stamp, which closes no tap and keeps the panel refreshing', async () => {
