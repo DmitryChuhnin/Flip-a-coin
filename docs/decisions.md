@@ -175,13 +175,14 @@ online.
   served with `Last-Modified` counts as fresh by heuristic unless the response has
   `Pragma: no-cache`, an `Expires` that is a date or `0`, or `Cache-Control` with `max-age`,
   `no-cache`, `no-store` or `must-revalidate`; `Cache-Control: public` alone does not rule that
-  out, nor does an `Expires` Chromium cannot parse. Chromium sets the
-  lifetime once per response, to a tenth of the gap between its `Date` and `Last-Modified`;
-  within it the HTTP cache answers without a request, and a deploy shows only at the launch after
-  next, as from the worker's cache. With `no-cache` an unchanged page costs one request answered
-  with 304. The second argument also makes the server see `Sec-Fetch-Mode: same-origin` and the
-  worker's URL as `Referer`. The request itself, not its URL, goes to `fetch`: it keeps the
-  redirect mode `manual`, and the redirect fallback depends on it.
+  out, nor does an `Expires` Chromium cannot parse. Chromium sets the lifetime once per response,
+  to a tenth of the gap between its `Date` and `Last-Modified`; both rules are from its `main`
+  source as of 2026-10-16. Within that lifetime the HTTP cache answers without a request, and a
+  deploy shows only at the launch after next, as from the worker's cache. With `no-cache` an
+  unchanged page costs one request answered with 304. The second argument also makes the server
+  see `Sec-Fetch-Mode: same-origin` and the worker's URL as `Referer`. The request itself, not its
+  URL, goes to `fetch`: it keeps the redirect mode `manual`, and the redirect fallback depends on
+  it.
 - The page from the network is not cached. Under the old worker it belongs to the new build, and
   the old worker fetches the new build's files from the network because its cache lacks them;
   the cache stays one consistent build for offline launches.
@@ -191,11 +192,13 @@ online.
   the engine error, and Reload goes to the network again, although the old build is complete in
   the cache. The cached page avoided both and showed a deploy only at the launch after next.
 - A new worker does not call `skipWaiting`: it takes over once every tab of the old version is
-  closed. An open old page still loads the physics chunk and the wasm lazily, and with an early
-  switch neither is in the new cache nor, after a deploy, on the server.
+  closed. An open old page still loads the physics chunk and the wasm lazily: with an early
+  switch, those the new build changed are not in the new cache, and the server keeps the previous
+  build's files only for a while (README, "Deploy").
 - The install fails, and the old version stays, when the page at the scope URL is redirected or
   does not load this build's entry script. Chrome refuses a redirected response for a page load,
-  and a stale page from a cache in front of the server would point at deleted files. The server
+  and a stale page from a cache in front of the server belongs to another build than the files
+  the install caches: an offline launch would load an entry script the cache lacks. The server
   must answer `/flip-a-coin/` with the page itself, not a redirect.
 - Content-hashed files are copied from the previous cache, so an update downloads only what
   changed. The page, the manifest and the icons keep their names across builds and are always
