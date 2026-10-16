@@ -6,7 +6,7 @@
   --knob: #fff;
   --accent: #ff8a6b;
   --shadow: rgb(70 50 160 / 16%);
-  --font-game: 'Baloo 2', 'Trebuchet MS', system-ui, sans-serif;
+  --font-game: 'Baloo 2', 'Nunito', 'Trebuchet MS', system-ui, sans-serif;
   --top: max(18px, calc(env(safe-area-inset-top) + 8px));
   --bottom: max(24px, calc(env(safe-area-inset-bottom) + 12px));
 }
