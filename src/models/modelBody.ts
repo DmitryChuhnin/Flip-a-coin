@@ -42,8 +42,8 @@ const SNAP_TOLERANCE = 1e-3;
  */
 const CORNER_LIMIT = 2e-4;
 /**
- * Aligning moves the hull's center of mass to the origin unless a direction is kept by every
- * symmetry, as the axis of a coin's only flip; an offset along it stays and must not exceed this.
+ * Measured on the unaligned hull. Aligning moves its center of mass onto the origin unless all the
+ * symmetries keep one direction, and would let an origin up to about 3e-4 off pass.
  */
 const ORIGIN_LIMIT = 2e-4;
 /** Face normals must be unit to this, as in `defineBody`; only their directions are aligned. */
@@ -92,7 +92,7 @@ export function modelBody<V extends string>(
   const hull = new Float32Array(exact.flat());
   const vectors = hullVectors(hull);
   const reach = bodyReach(hull);
-  const offset = length3(hullCenter(exact)) / reach;
+  const offset = length3(hullCenter(scaled)) / reach;
   if (!(offset <= ORIGIN_LIMIT)) {
     throw new RangeError(
       `The model's origin is ${offset.toExponential(1)} of its size off the center of mass of its hull, more than ${ORIGIN_LIMIT.toExponential()}`,

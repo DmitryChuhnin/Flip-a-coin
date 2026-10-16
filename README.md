@@ -153,10 +153,12 @@ symmetric places. Each rotation is found from two pairs of corners and carries t
 corners pass only up to about 2e-4 of the size off those places: at 1e-4 off every item passes, with
 normals computed from such a mesh, and at 1e-3 every item fails. Blender's Ico Sphere, up to 1.4e-5
 of the radius off, passes. The origin must be the hull's center of mass at even density, to 2e-4
-of the size. Aligning moves the hull onto an origin that close unless every symmetry keeps a
-direction, as with a coin whose only symmetry is a flip: then the offset stays, and a model more
-than 2e-4 off is rejected. From 5e-4 off every item is rejected. Normals must be unit length to
-1e-6. With any value up the model must
+of the size; a model further off is rejected, also where aligning would move the hull onto the
+origin. Corner errors move the center of mass too: with the origin at the symmetric center they
+count against the origin limit, on a coin by up to twice their size in 20,000 meshes. The two errors
+add up, so a model near both limits can be rejected: of 300 meshes of each item with the corners
+1e-4 off and the origin off in a random direction, up to 60 were rejected at 1.9e-4, up to 8 at
+1.5e-4 and one coin at 1e-4. Normals must be unit length to 1e-6. With any value up the model must
 rest on a flat side, the hull points within 1e-3 of the size of the lowest one, with its center of
 mass above it, and a tilt of less than 5° about an edge of that side must not tip it over. A model
 that breaks these rules is rejected with a `RangeError` that names the fault; a file that does not

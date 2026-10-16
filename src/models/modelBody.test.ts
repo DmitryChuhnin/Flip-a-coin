@@ -254,17 +254,21 @@ describe('modelBody', () => {
   });
 
   it.each(ITEMS)(
-    'accepts the %s with its origin off by 2e-4 of the reach and keeps all its symmetries',
+    'accepts the %s with its origin off by 1.9e-4 of the reach and keeps all its symmetries, and rejects it 2.1e-4 off, though aligning would move its hull onto the origin',
     (_, template) => {
       const { points, faces } = asModel(template);
-      const off = 2e-4 * Math.max(...points.map(length3));
-      const moved = points.map((p): Vec3 => [
-        p[0] + 0.48 * off,
-        p[1] + 0.6 * off,
-        p[2] + 0.64 * off,
-      ]);
-      const { body } = modelBody({ points: moved, faces }, template);
+      const reach = Math.max(...points.map(length3));
+      const moved = (share: number) =>
+        points.map((p): Vec3 => [
+          p[0] + 0.48 * share * reach,
+          p[1] + 0.6 * share * reach,
+          p[2] + 0.64 * share * reach,
+        ]);
+      const { body } = modelBody({ points: moved(1.9e-4), faces }, template);
       expect(body.symmetries).toHaveLength(template.symmetries.length);
+      expect(() => modelBody({ points: moved(2.1e-4), faces }, template)).toThrow(
+        /The model's origin is 2\.1e-4 of its size off the center of mass of its hull, more than 2e-4/,
+      );
     },
   );
 

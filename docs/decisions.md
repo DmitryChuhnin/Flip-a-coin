@@ -349,12 +349,17 @@ with normals computed from the moved mesh, at 3e-4 some meshes of every item fai
 do (measured 2026-10-17), so corners pass up to about 2e-4. Fitting each rotation to all its corners
 would move that limit toward 1e-3; the measured one already passes the rounding of mesh tools. An
 origin off the hull's center of mass fails the same way: moved by 2e-4 of the reach in seven
-directions every item passes, from 5e-4 none does (2026-10-17). Averaging puts the hull's center of
-mass on the origin unless every symmetry keeps a direction: a coin with its origin off along one
-of its flip axes by 1e-3 to 0.4 of the reach keeps only that flip, and the offset with it, so the
-center of mass of the aligned hull must be within 2e-4 of the reach of the origin. Off those axes
-the coin keeps no symmetry and fails to align (2026-10-17). Points closer
-together than 1e-5
+directions every item aligns, from 5e-4 none does (2026-10-17). The two errors add up. Of 300 meshes
+of each item with the corners 1e-4 off and the origin moved off the mesh's own center of mass in a
+random direction, 2 (d8) to 60 (coin) are rejected at 1.9e-4, 0 to 8 (coin) at 1.5e-4, and one coin
+at 1e-4. Corner errors move the center of mass too: with the corners 1e-4 off, by up to 1.72 times
+their size on the coin, 1.23 on d4 and 0.53 on d20 in 2,000 meshes each, and by 2.01 on one coin in
+20,000, which gets the origin message with its origin left at the symmetric center. With the corners
+2e-4 off, 23 of 300 coins do (2026-10-17). Averaging moves the hull's center of mass onto the origin
+unless all the symmetries keep one direction, so the origin is checked on the hull as given, to 2e-4
+of the reach. Checked on the aligned hull, every item passed with its origin 2.5e-4 off, and only an
+offset the symmetries keep was caught, as a coin's along one of its flip axes, which from 1e-3 of
+the reach keeps that flip and the offset (2026-10-17). Points closer together than 1e-5
 of the reach are merged first: split vertices a little apart would be corners closer together than
 2e-3 of the reach, which are rejected, as rotations found to 1e-3 could take one for the other.
 Corners are the hull points where three sides meet, hull triangles turned less than 1e-3 rad from
