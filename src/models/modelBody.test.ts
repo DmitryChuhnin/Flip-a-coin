@@ -49,6 +49,15 @@ function symmetryError(body: TossBody<string>): { hull: number; normals: number 
   };
 }
 
+/** The farthest aligning moved the normal of a value; one given another side's normal is far off. */
+function normalShift(
+  body: TossBody<string>,
+  faces: readonly { value: string | number; normal: Vec3 }[],
+): number {
+  const given = (value: string) => faces.find((face) => String(face.value) === value)!.normal;
+  return Math.max(...body.faces.map((face) => distance(face.normal, given(face.value))));
+}
+
 /** Blender's Ico Sphere at Subdivisions 1, from its vertex table, exported with +Y Up. */
 const BLENDER_ICO: Vec3[] = [
   [0, 0, -200],
@@ -131,7 +140,7 @@ describe('modelBody', () => {
   });
 
   it.each(ITEMS)(
-    'makes the %s with corners off by 1e-4 of the reach and normals taken from them exactly symmetric',
+    'makes the %s with corners off by 1e-4 of the reach and normals taken from them exactly symmetric, each normal within 1e-3 of the one given for its value',
     (name, template) => {
       const points = jitter(asModel(template).points, 1e-4);
       const hull = new ConvexHull().setFromPoints(points.map((p) => new Vector3(...p)));
@@ -158,6 +167,7 @@ describe('modelBody', () => {
       const error = symmetryError(body);
       expect(error.hull).toBeLessThan(1e-6);
       expect(error.normals).toBeLessThan(1e-12);
+      expect(normalShift(body, faces)).toBeLessThan(1e-3);
     },
   );
 
@@ -170,7 +180,7 @@ describe('modelBody', () => {
     );
   });
 
-  it("accepts a d20 made from Blender's Ico Sphere, up to 1.4e-5 of the radius off", () => {
+  it("accepts a d20 made from Blender's Ico Sphere, up to 1.4e-5 of the radius off, each normal within 1e-3 of the one given for its value", () => {
     const d20 = createDie('d20').body;
     const edge = Math.min(
       ...BLENDER_ICO.flatMap((p, i) => BLENDER_ICO.slice(i + 1).map((s) => distance(p, s))),
@@ -195,6 +205,7 @@ describe('modelBody', () => {
     const { body } = modelBody({ points: BLENDER_ICO, faces }, d20);
     expect(body.symmetries).toHaveLength(60);
     expect(symmetryError(body).hull).toBeLessThan(1e-6);
+    expect(normalShift(body, faces)).toBeLessThan(1e-3);
   });
 
   it('keeps only the corners: an outline engraved in each side does not count', () => {
