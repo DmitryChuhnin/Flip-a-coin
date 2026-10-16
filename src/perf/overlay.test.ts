@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Pose } from '../math/quat';
 import type { TossEngine } from '../toss/engine';
 import type { TossPlan } from '../toss/planToss';
+import { SLOW_FRAME_MS } from './meter';
 import { REFRESH_MS, startPerfOverlay } from './overlay';
 
 function host() {
@@ -165,5 +166,22 @@ describe('startPerfOverlay', () => {
     setHidden(false);
     frames(30_000, REFRESH_MS);
     expect(panel().textContent).toContain(`worst ${REFRESH_MS} ms, slow 1/1`);
+  });
+
+  it('rounds frame times down and work times up, as the slow count and a budget read them', () => {
+    const { overlay, advance, frames } = host();
+    const engine: TossEngine = {
+      prepare: () => void advance(40.2),
+      plan: vi.fn().mockImplementation(() => {
+        advance(29.1);
+        return PLAN;
+      }) as TossEngine['plan'],
+    };
+    const timed = overlay.time(engine);
+    timed.prepare(BODY);
+    timed.plan(BODY, START, false);
+    frames(16, ...Array<number>(13).fill(SLOW_FRAME_MS - 0.4));
+    expect(panel().textContent).toContain(`worst ${SLOW_FRAME_MS - 1} ms, slow 0/13`);
+    expect(panel().textContent).toContain('plan 30 ms, prepare 41 ms');
   });
 });

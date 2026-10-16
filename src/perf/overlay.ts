@@ -18,13 +18,15 @@ export interface PerfHost {
   requestFrame: (callback: (nowMs: number) => void) => void;
 }
 
-const ms = (value: number | null) => (value === null ? '-' : `${Math.round(value)} ms`);
+// Frame times round down, as `slow` compares them; work times round up, as a budget is a ceiling.
+const frameMs = (value: number | null) => (value === null ? '-' : `${Math.floor(value)} ms`);
+const workMs = (value: number | null) => (value === null ? '-' : `${Math.ceil(value)} ms`);
 const fps = (value: number | null) => (value === null ? '-' : String(Math.round(value)));
 
 function framesLine(label: string, numbers: FrameNumbers | null): string {
   if (!numbers || numbers.frames === 0) return `${label} -`;
   const { fps: rate, worstMs, slow, frames } = numbers;
-  return `${label} ${fps(rate)} fps, worst ${ms(worstMs)}, slow ${slow}/${frames}`;
+  return `${label} ${fps(rate)} fps, worst ${frameMs(worstMs)}, slow ${slow}/${frames}`;
 }
 
 /** Frame rate and toss planning time in a corner of the page, to check a phone without DevTools. */
@@ -45,7 +47,7 @@ export function startPerfOverlay({ document, now, requestFrame }: PerfHost): Per
     panel.textContent = [
       framesLine(`last ${WINDOW_MS / 1000} s`, meter.last()),
       framesLine('flight', flight),
-      `plan ${ms(planMs)}, prepare ${ms(prepareMs)}`,
+      `plan ${workMs(planMs)}, prepare ${workMs(prepareMs)}`,
     ].join('\n');
   }
 
