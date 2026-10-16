@@ -10,6 +10,9 @@ export default defineConfig({
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: `http://localhost:${PORT}/flip-a-coin/`,
+    // Playwright's default of 0 lets an action or a page load hang until the test timeout.
+    actionTimeout: 15_000,
+    navigationTimeout: 30_000,
     trace: 'retain-on-failure',
   },
   projects: [

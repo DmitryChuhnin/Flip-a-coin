@@ -18,6 +18,17 @@ const cornerAlpha = (page: import('@playwright/test').Page, src: string) =>
     return context.getImageData(0, 0, 1, 1).data[3];
   }, src);
 
+/** Scope of the page's active worker; fails after 15 s, where `serviceWorker.ready` waits forever. */
+const activeWorkerScope = (page: import('@playwright/test').Page) =>
+  page.evaluate(() =>
+    Promise.race([
+      navigator.serviceWorker.ready.then((registration) => registration.scope),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('no active service worker in 15 s')), 15_000),
+      ),
+    ]),
+  );
+
 /** The linked manifest as Chromium parsed it; `id` resolves against the origin, not the file. */
 async function parsedManifest(page: import('@playwright/test').Page) {
   const cdp = await page.context().newCDPSession(page);
@@ -36,7 +47,7 @@ async function controlledPage(page: import('@playwright/test').Page): Promise<vo
     HTMLCanvasElement.prototype.getContext = () => null;
   });
   await page.goto('./');
-  await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+  await activeWorkerScope(page);
   await page.reload();
   expect(await page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
 }
@@ -44,7 +55,7 @@ async function controlledPage(page: import('@playwright/test').Page): Promise<vo
 test('runs offline after the first visit', async ({ page, context }) => {
   await page.goto('./');
   await expect(body(page)).toHaveAttribute('data-toss-state', 'idle', { timeout: 15_000 });
-  await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+  await activeWorkerScope(page);
 
   await context.setOffline(true);
   await page.reload();
@@ -97,7 +108,7 @@ test('links an installable manifest of the game path whose icons load', async ({
 
 test('registers the worker for the game path only', async ({ page }) => {
   await page.goto('./');
-  const scope = await page.evaluate(() => navigator.serviceWorker.ready.then((r) => r.scope));
+  const scope = await activeWorkerScope(page);
   expect(scope).toBe(new URL('/flip-a-coin/', page.url()).href);
   const scopes = await page.evaluate(() =>
     navigator.serviceWorker.getRegistrations().then((all) => all.map((r) => r.scope)),
