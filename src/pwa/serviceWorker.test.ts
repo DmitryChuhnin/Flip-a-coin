@@ -189,7 +189,7 @@ describe('serviceWorkerSource', () => {
       expect(worker.caches.stores.get('flip-a-coin-b2')!.get(SCOPE)).toBe(PAGE);
     });
 
-    it.each(['default', 'no-cache', 'reload', 'force-cache'])(
+    it.each(['default', 'no-store', 'reload', 'no-cache', 'force-cache', 'only-if-cached'])(
       'request the page in cache mode no-cache whatever the launch asked (%s), keeping redirects manual',
       async (cache) => {
         const worker = install(BUILD);
