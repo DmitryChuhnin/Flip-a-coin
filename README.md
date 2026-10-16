@@ -56,16 +56,18 @@ The server must:
   Unless a file has `no-cache`, `no-store` or `private`, such a cache answers without asking the
   server while the file is fresh to it: for its `s-maxage`, which the cache takes before
   `max-age`, else for its `max-age`, else until its `Expires` date, else for the cache's own
-  default lifetime. Where the cache reads a field meant for CDNs, such as `CDN-Cache-Control`,
-  which every CDN on the path may read, or `Surrogate-Control`, that field takes the place of
-  `Cache-Control` and `Expires`, their `no-cache`, `no-store` and `private` included (RFC 9213
-  for `CDN-Cache-Control`), though Fastly's VCL boilerplate still passes a file whose
-  `Cache-Control` has `private`. A setting
+  default lifetime. A field meant for CDNs, such as `Surrogate-Control` or `CDN-Cache-Control`,
+  takes the place of `Cache-Control` and `Expires` in a cache that reads it, their `no-cache`,
+  `no-store` and `private` included; RFC 9213 says so for `CDN-Cache-Control` and addresses it to
+  every CDN on the path. A setting
   of the cache itself can override them all: a CloudFront minimum TTL above zero, or a Cloudflare
   edge TTL that ignores `Cache-Control`, keeps the file despite `no-cache`, `no-store` or
   `private`. Turn such a setting off for these files, or purge them. Fastly's VCL services ignore
-  `no-cache`: they keep a file without `max-age`, `s-maxage` or `Surrogate-Control: max-age` for
-  their fallback TTL, so behind them send these files with `private` too, or purge them. The
+  `no-cache`. Their boilerplate, which every service without custom VCL runs and custom VCL starts
+  from, keeps a file without `Expires`, `max-age`, `s-maxage` or `Surrogate-Control: max-age` for
+  the fallback TTL, an hour unless changed. It passes a file whose `Cache-Control` has `private`,
+  whatever a field meant for CDNs says, so behind Fastly send these files with `private` too, or
+  purge them. The
   worker's install bypasses only the browser's own cache. The install checks that the page
   loads its own build's entry script, so a stale `sw.js` with a fresh page, or a stale page with
   a fresh `sw.js`, fails it: a new player gets no offline play. A returning player's browser sees

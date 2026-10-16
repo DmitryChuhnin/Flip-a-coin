@@ -177,12 +177,15 @@ online.
   `no-cache`, `no-store` or `must-revalidate`; `Cache-Control: public` alone does not rule that
   out, nor does an `Expires` it cannot parse. Chromium sets the lifetime once per response,
   to a tenth of the gap between its `Date` and `Last-Modified`. Both rules are from its `main`
-  source as of 2026-10-16; older Chromium versions were not checked. Firefox rules the heuristic
+  source as of 2026-10-16; older Chromium versions were not checked. Its `main` lets
+  `Cache-Control: immutable` cancel `Pragma: no-cache` only under the `kCacheControlImmutable`
+  feature, which is disabled by default. Firefox rules the heuristic
   out with `max-age`, any `Expires`, `no-cache`, `Pragma: no-cache` or `no-store`, not with
-  `must-revalidate`, and caps it at a week (its `main` source, 2026-10-17). There
-  `Pragma: no-cache` counts next to `Cache-Control` unless that has `immutable`, as from Firefox
-  145 (bug 1937766); 144, 140 and ESR 140 ignore it when the response has any `Cache-Control`,
-  and older versions were not checked. Within that lifetime the
+  `must-revalidate`, and caps it at a week (its `main` source, 2026-10-17). From Firefox 145 on,
+  `Pragma: no-cache` counts next to `Cache-Control` unless that has `immutable`; in 144, 140 and
+  ESR 140 it does not count when the response has any `Cache-Control`. Both come from
+  `NoCache_locked` at the release tags, read 2026-10-17; bug 1937766 shows milestone 140, where
+  only a test landed. Older versions were not checked. Within that lifetime the
   HTTP cache answers without a request, and a deploy shows only at the launch after next, as from
   the worker's cache. With `no-cache` an unchanged page costs one request answered with 304. The
   second argument also makes the server see `Sec-Fetch-Mode: same-origin` and the worker's URL as
