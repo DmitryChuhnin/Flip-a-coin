@@ -64,14 +64,16 @@ The server must:
   edge TTL that ignores `Cache-Control`, keeps the file despite `no-cache`, `no-store` or
   `private`. Turn such a setting off for these files, or purge them. Fastly ignores `no-cache` and
   does not cache a file whose `Cache-Control` has `private`, so behind Fastly send these files with
-  `private` too, or purge them. On Compute, `Surrogate-Control` can take priority over that
-  `private`, as above. On VCL, the boilerplate that every service without custom VCL runs keeps a
+  `private` too. In `Surrogate-Control` Fastly documents only `max-age`, `stale-while-revalidate`
+  and `stale-if-error`, so do not rely on a `no-cache`, `no-store` or `private` there.
+  On Compute, send these files without `Surrogate-Control`, which can override `Cache-Control`, or
+  purge them. On VCL, the boilerplate that every service without custom VCL runs keeps a
   file without `Expires`, `max-age`, `s-maxage` or `Surrogate-Control: max-age` for the fallback
-  TTL, an hour unless changed, and passes `private` even next to `Surrogate-Control`. Fastly
-  inserts the service's cache settings and snippets before that check, and one that sets an
-  action or returns ends `vcl_fetch` first; custom VCL may drop the check, as Fastly allows
-  removing any of the default interventions. Make sure nothing skips it for these files, or purge
-  them. The
+  TTL, an hour unless changed, and passes `private` even next to `Surrogate-Control`. The
+  service's cache settings and snippets run before that check; a cache setting with an action, or a
+  snippet that returns, ends `vcl_fetch` before it. Custom VCL may leave the check out, as Fastly
+  lets it remove any of the boilerplate's defaults. Make sure these files reach the check with
+  `private`, or purge them. The
   worker's install bypasses only the browser's own cache. The install checks that the page
   loads its own build's entry script, so a stale `sw.js` with a fresh page, or a stale page with
   a fresh `sw.js`, fails it: a new player gets no offline play. A returning player's browser sees
