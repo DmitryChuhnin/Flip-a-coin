@@ -62,12 +62,16 @@ The server must:
   every CDN on the path. A setting
   of the cache itself can override them all: a CloudFront minimum TTL above zero, or a Cloudflare
   edge TTL that ignores `Cache-Control`, keeps the file despite `no-cache`, `no-store` or
-  `private`. Turn such a setting off for these files, or purge them. Fastly's VCL services ignore
-  `no-cache`. Their boilerplate, which every service without custom VCL runs and custom VCL starts
-  from, keeps a file without `Expires`, `max-age`, `s-maxage` or `Surrogate-Control: max-age` for
-  the fallback TTL, an hour unless changed. It passes a file whose `Cache-Control` has `private`,
-  whatever a field meant for CDNs says, so behind Fastly send these files with `private` too, or
-  purge them. The
+  `private`. Turn such a setting off for these files, or purge them. Fastly ignores `no-cache` and
+  does not cache a file whose `Cache-Control` has `private`, so behind Fastly send these files with
+  `private` too, or purge them. On Compute, `Surrogate-Control` can take priority over that
+  `private`, as above. On VCL, the boilerplate that every service without custom VCL runs keeps a
+  file without `Expires`, `max-age`, `s-maxage` or `Surrogate-Control: max-age` for the fallback
+  TTL, an hour unless changed, and passes `private` even next to `Surrogate-Control`. Fastly
+  inserts the service's cache settings and snippets before that check, and one that sets an
+  action or returns ends `vcl_fetch` first; custom VCL may drop the check, as Fastly allows
+  removing any of the default interventions. Make sure nothing skips it for these files, or purge
+  them. The
   worker's install bypasses only the browser's own cache. The install checks that the page
   loads its own build's entry script, so a stale `sw.js` with a fresh page, or a stale page with
   a fresh `sw.js`, fails it: a new player gets no offline play. A returning player's browser sees

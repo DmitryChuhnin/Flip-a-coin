@@ -184,8 +184,9 @@ online.
   `must-revalidate`, and caps it at a week (its `main` source, 2026-10-17). From Firefox 145 on,
   `Pragma: no-cache` counts next to `Cache-Control` unless that has `immutable`; in 144, 140 and
   ESR 140 it does not count when the response has any `Cache-Control`. Both come from
-  `NoCache_locked` at the release tags, read 2026-10-17; bug 1937766 shows milestone 140, where
-  only a test landed. Older versions were not checked. Within that lifetime the
+  `NoCache_locked` at the release tags, read 2026-10-17: the change landed in 145 under bug
+  1937766, whose milestone 140 marks only a test. Older versions were not checked. Within the
+  heuristic lifetime the
   HTTP cache answers without a request, and a deploy shows only at the launch after next, as from
   the worker's cache. With `no-cache` an unchanged page costs one request answered with 304. The
   second argument also makes the server see `Sec-Fetch-Mode: same-origin` and the worker's URL as
