@@ -45,10 +45,13 @@ describe('FrameMeter', () => {
     expect(meter.last()).toMatchObject({ frames: 1, worstMs: 16 });
   });
 
-  it('ignores a timestamp that does not move forward', () => {
+  it('skips a timestamp that does not move forward or is not finite', () => {
     const meter = new FrameMeter();
+    expect(meter.frame(NaN)).toBeNull();
     run(meter, 1000, [16, 0, -5, 16]);
-    expect(meter.last()).toMatchObject({ frames: 2, worstMs: 16 });
+    expect(meter.frame(Infinity)).toBeNull();
+    expect(meter.frame(1043)).toBe(16);
+    expect(meter.last()).toEqual({ fps: (3 * 1000) / 43, worstMs: 16, slow: 0, frames: 3 });
   });
 
   it('counts a span from its start to its end, past the window', () => {
