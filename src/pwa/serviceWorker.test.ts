@@ -12,9 +12,12 @@ interface Download {
 /** A server: the page, then any other path as `new <url>`; `redirect` and `fail` per URL. */
 function server(page = PAGE, { redirect = '', fail = '' } = {}) {
   const downloads: Download[] = [];
-  const get = async (input: string | Request): Promise<Response> => {
+  const get = async (input: string | Request, init?: RequestInit): Promise<Response> => {
     const url = typeof input === 'string' ? input : input.url;
-    downloads.push({ url, mode: typeof input === 'string' ? undefined : input.cache });
+    downloads.push({
+      url,
+      mode: init?.cache ?? (typeof input === 'string' ? undefined : input.cache),
+    });
     if (url === fail) throw new TypeError('offline');
     const response = new Response(url === SCOPE ? page : `new ${url}`);
     if (url === redirect) Object.defineProperty(response, 'redirected', { value: true });
@@ -174,8 +177,19 @@ describe('serviceWorkerSource', () => {
       expect(await text(await open(worker))).toBe(NEXT_PAGE);
       expect(worker.fetch).toHaveBeenLastCalledWith(
         expect.objectContaining({ url: `${SCOPE}?lang=ru`, mode: 'navigate' }),
+        expect.anything(),
       );
       expect(worker.caches.stores.get('flip-a-coin-b2')!.get(SCOPE)).toBe(PAGE);
+    });
+
+    it('ask the server for the page even when the HTTP cache holds a copy it deems fresh', async () => {
+      const worker = install(BUILD);
+      await worker.run('install');
+      const before = worker.downloads.length;
+      await open(worker);
+      expect(worker.downloads.slice(before)).toEqual([
+        { url: `${SCOPE}?lang=ru`, mode: 'no-cache' },
+      ]);
     });
 
     it('fall back to the cached page offline, on an error status and on a redirect', async () => {

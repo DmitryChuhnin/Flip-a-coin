@@ -71,7 +71,9 @@ self.addEventListener('activate', (event) => {
 // or after PAGE_TIMEOUT_MS the cached page answers. The network page is not cached: it may belong
 // to a newer build whose files this cache lacks.
 async function answerPage(request) {
-  const network = fetch(request);
+  // A page served without Cache-Control looks fresh to the HTTP cache by heuristic and would hide
+  // a deploy for a launch; no-cache asks the server every time, and a 304 answers from that copy.
+  const network = fetch(request, { cache: 'no-cache' });
   network.catch(() => {});
   let timer;
   const timeout = new Promise((resolve) => (timer = setTimeout(resolve, PAGE_TIMEOUT_MS)));
