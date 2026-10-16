@@ -6,7 +6,7 @@ const PAGE = '<script type="module" src="/flip-a-coin/assets/index-B.js"></scrip
 
 interface Download {
   url: string;
-  mode: RequestCache | undefined;
+  cache: RequestCache | undefined;
 }
 
 /** A server: the page, then any other path as `new <url>`; `redirect` and `fail` per URL. */
@@ -16,7 +16,7 @@ function server(page = PAGE, { redirect = '', fail = '' } = {}) {
     const url = typeof input === 'string' ? input : input.url;
     downloads.push({
       url,
-      mode: init?.cache ?? (typeof input === 'string' ? undefined : input.cache),
+      cache: init?.cache ?? (typeof input === 'string' ? undefined : input.cache),
     });
     if (url === fail) throw new TypeError('offline');
     const response = new Response(url === SCOPE ? page : `new ${url}`);
@@ -107,8 +107,8 @@ describe('serviceWorkerSource', () => {
         `${SCOPE}manifest.webmanifest`,
       ].sort(),
     );
-    for (const { url, mode } of worker.downloads) {
-      if (url === SCOPE || url.endsWith('.webmanifest')) expect(mode).toBe('reload');
+    for (const { url, cache } of worker.downloads) {
+      if (url === SCOPE || url.endsWith('.webmanifest')) expect(cache).toBe('reload');
     }
     expect(worker.caches.stores.get('flip-a-coin-b2')!.get(SCOPE)).toBe(PAGE);
   });
@@ -162,7 +162,7 @@ describe('serviceWorkerSource', () => {
   describe('page loads', () => {
     const NEXT_PAGE = PAGE.replace('index-B', 'index-C');
     const open = (worker: ReturnType<typeof install>, url = `${SCOPE}?lang=ru`) =>
-      worker.run('fetch', { request: { url, method: 'GET', mode: 'navigate' } });
+      worker.run('fetch', { request: { url, method: 'GET', mode: 'navigate', cache: 'default' } });
     const text = async (answer: unknown) =>
       typeof answer === 'string' ? answer : (answer as Response).text();
 
@@ -182,13 +182,13 @@ describe('serviceWorkerSource', () => {
       expect(worker.caches.stores.get('flip-a-coin-b2')!.get(SCOPE)).toBe(PAGE);
     });
 
-    it('ask the server for the page even when the HTTP cache holds a copy it deems fresh', async () => {
+    it('request the page in cache mode no-cache, so the HTTP cache revalidates even a copy it deems fresh', async () => {
       const worker = install(BUILD);
       await worker.run('install');
       const before = worker.downloads.length;
       await open(worker);
       expect(worker.downloads.slice(before)).toEqual([
-        { url: `${SCOPE}?lang=ru`, mode: 'no-cache' },
+        { url: `${SCOPE}?lang=ru`, cache: 'no-cache' },
       ]);
     });
 
