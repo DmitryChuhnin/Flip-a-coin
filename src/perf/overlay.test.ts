@@ -249,4 +249,13 @@ describe('startPerfOverlay', () => {
     expect(panel().textContent).toContain(`worst ${SLOW_FRAME_MS - 1} ms, slow 0/13`);
     expect(panel().textContent).toContain('plan 30 ms, prepare 41 ms');
   });
+
+  it('passes a thrown value that is not an Error through as it is', () => {
+    const { overlay } = host();
+    const engine = { prepare: vi.fn(), plan: vi.fn() } as TossEngine;
+    vi.mocked(engine.plan).mockImplementation(() => {
+      throw 'no plan';
+    });
+    expect(thrown(() => overlay.time(engine).plan(BODY, START, false))).toBe('no plan');
+  });
 });

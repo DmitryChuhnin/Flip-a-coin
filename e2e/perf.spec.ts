@@ -26,6 +26,22 @@ test('shows frame rate and planning time with ?perf and passes taps on the panel
   expect(errors).toEqual([]);
 });
 
+test('keeps the panel and the reload offer with ?perf when the engine fails to load', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.route('**/*.wasm', (route) => route.abort());
+  await page.goto('./?perf');
+  await expect(body(page)).toHaveAttribute('data-toss-state', 'error', { timeout: 15_000 });
+  // The state attribute is set before the panel hears of the state; the button comes after it.
+  await expect(page.getByRole('button', { name: 'Reload' })).toBeVisible();
+  const panel = page.locator('#perf');
+  await expect(panel).toContainText(/last 1 s \d+ fps/);
+  await expect(panel).toContainText('tap frame -, plan -, prepare -');
+  expect(errors).toEqual([]);
+});
+
 test('shows no panel without ?perf', async ({ page }) => {
   await page.goto('./');
   await expect(body(page)).toHaveAttribute('data-toss-state', 'idle', { timeout: 15_000 });

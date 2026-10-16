@@ -50,4 +50,13 @@ describe('createTossEngine', () => {
       expect(apex(reduced.frames)).toBeLessThan(apex(normal.frames) - 0.3);
     },
   );
+
+  it('records the fallbacks of a body once, so a later prepare of it simulates nothing', async () => {
+    const { state, simulate } = switchable();
+    const engine = await createTossEngine(simulate);
+    engine.prepare(COIN_BODY);
+    state.calls = 0;
+    engine.prepare(COIN_BODY);
+    expect(state.calls).toBe(0);
+  });
 });
