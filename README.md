@@ -53,9 +53,15 @@ The server must:
   in place, as a launch before that puts the old copy back. A cache keeps the page under
   `/flip-a-coin/`, the URL players and the install request, so a purge of `index.html` alone
   leaves it: purge `/flip-a-coin/` itself with its query strings (`?perf`), or the whole path.
-  For a file's `max-age`, or for its own default lifetime when the file has neither `max-age`
-  nor `no-cache`, `no-store` or `private`, such a cache answers without asking the server, and
-  the worker's install bypasses only the browser's own cache. The install checks that the page
+  Unless a file has `no-cache`, `no-store` or `private`, such a cache answers without asking the
+  server while the file is fresh to it: for its `s-maxage`, which the cache takes before
+  `max-age`, else for its `max-age`, else until its `Expires` date, else for the cache's own
+  default lifetime. Where the cache reads a field meant for it alone, such as `CDN-Cache-Control`
+  or `Surrogate-Control`, that field takes the place of `Cache-Control` and `Expires`. A setting
+  of the cache itself can override them all: a CloudFront minimum TTL above zero, or a Cloudflare
+  edge TTL that ignores `Cache-Control`, keeps the file despite `no-cache`, `no-store` or
+  `private`. Turn such a setting off for these files, or purge them. The
+  worker's install bypasses only the browser's own cache. The install checks that the page
   loads its own build's entry script, so a stale `sw.js` with a fresh page, or a stale page with
   a fresh `sw.js`, fails it: a new player gets no offline play. A returning player's browser sees
   no new worker under a stale `sw.js` and fails to install it under a stale page, so their
@@ -65,13 +71,16 @@ The server must:
 - give the page, `sw.js` and each public file a new `Last-Modified` or `ETag` whenever a deploy
   changes that file. A fresh build does this whether it is copied with its own modification
   times (`rsync -a`, `cp -p`) or with new ones. The browser's check for a new worker, the
-  worker's page request and a CDN's check under `no-cache` are conditional. nginx builds
+  worker's page request on a launch and a CDN's check under `no-cache` are conditional; the
+  install's requests for the page and the public files are not. nginx builds
   `Last-Modified` from the modification time and `ETag` from it and the size, and these files
   often keep their size from build to build: a deploy that gives every build the same
   modification times (an archive or an image with fixed timestamps) keeps both validators. The
   requests then get 304: players stay on the previous build, a CDN gives its page to new players
-  too and an old manifest or icon to the install. Once the server drops that build's `assets/`,
-  a player who does not have them in the worker's cache gets an empty page;
+  too and an old manifest or icon to the install. `rsync -a` from such a build skips a file of
+  the same size, so the server itself keeps the previous page, `sw.js` or public file. Once the
+  server drops the previous build's `assets/`, a player who does not have them in the worker's
+  cache gets an empty page;
 - put a new build in place in this order: `assets/` and the public files, then the page, then
   `sw.js`. With the page first, a launch in between gets an empty page. Keep serving the
   previous build's `assets/` after the switch, for example until the next deploy: a launch that
@@ -86,17 +95,19 @@ The server must:
   offline launches stay on the previous build. A page's policy without `worker-src` takes the
   worker's rule from `child-src`, then `script-src`: with a `child-src` that leaves out `'self'`
   and no `worker-src 'self'`, the page cannot register the worker, and a new player gets no
-  offline play, while an installed worker still updates. Without the others the game runs
-  without its styles, fonts, icons or manifest. A policy with `'strict-dynamic'` and a nonce
+  offline play, while an installed worker still updates. Where the policy does not allow `'self'`
+  in `style-src`, `font-src`, `img-src` or `manifest-src`, the game runs without its styles,
+  fonts, icons or manifest respectively. A policy with `'strict-dynamic'` and a nonce
   blocks the game: its entry script carries no nonce.
 
 Desirable:
 
 - `Cache-Control: no-cache` on the page also with nothing in front of the server. Under the
   worker the browser revalidates the page anyway. Without a worker, on plain HTTP, after a failed
-  install or in a browser that runs none, a page sent with `Last-Modified` stays fresh by
-  heuristic, and a deploy shows later. Neither an `ETag` nor `Cache-Control: public` alone rules
-  that out; `docs/decisions.md` lists the headers that do;
+  install or in a browser that runs none, a page sent with `Last-Modified` can stay fresh by
+  heuristic, and a deploy shows later. `docs/decisions.md` lists the headers that rule that out
+  in Chromium and in Firefox: `must-revalidate` does only in Chromium, an `ETag` or
+  `Cache-Control: public` in neither;
 - `application/wasm` for `.wasm`: with another type the physics engine loads by a slower path and
   logs a warning;
 - a long `max-age` for `assets/`: their names change with their content.
