@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { LANDING_MS } from './waits';
 
 const body = (page: Page) => page.locator('body');
 
@@ -25,7 +26,7 @@ test('unlocks audio on the first tap and vibrates once on landing', async ({ pag
 
   await page.locator('#scene').tap();
   await expect(body(page)).toHaveAttribute('data-audio', 'running');
-  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: 10_000 });
+  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: LANDING_MS });
   expect(await vibrations(page)).toBe(1);
 });
 
@@ -46,7 +47,7 @@ test('stays silent and still with the sound switched off', async ({ page }) => {
   await page.getByRole('button', { name: 'Sound', exact: true }).click();
 
   await page.locator('#scene').tap();
-  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: 10_000 });
+  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: LANDING_MS });
   expect(await vibrations(page)).toBe(0);
 });
 
@@ -64,6 +65,6 @@ test('tosses without errors where Web Audio and vibration are missing', async ({
   await expect(body(page)).toHaveAttribute('data-toss-state', 'idle', { timeout: 15_000 });
   await page.locator('#scene').tap();
   await expect(body(page)).toHaveAttribute('data-audio', 'unavailable');
-  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: 10_000 });
+  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: LANDING_MS });
   expect(errors).toEqual([]);
 });

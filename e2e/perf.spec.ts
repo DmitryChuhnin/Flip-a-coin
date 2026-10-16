@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { LANDING_MS } from './waits';
 
 const body = (page: Page) => page.locator('body');
 
@@ -20,9 +21,14 @@ test('shows frame rate and planning time with ?perf and passes taps on the panel
   const box = (await panel.boundingBox())!;
   await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
   await expect(body(page)).toHaveAttribute('data-toss-count', '1');
-  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: 10_000 });
-  await expect(panel).toContainText(/last flight \d+ fps, worst \d+ ms, slow \d+\/\d+/);
-  await expect(panel).toContainText(/tap frame \d+ ms, plan \d+ ms, prepare \d+ ms/);
+  try {
+    await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: LANDING_MS });
+    await expect(panel).toContainText(/last flight \d+ fps, worst \d+ ms, slow \d+\/\d+/);
+    await expect(panel).toContainText(/tap frame \d+ ms, plan \d+ ms, prepare \d+ ms/);
+  } finally {
+    // Also on a failure, so the CI log shows the runner's frame rate that LANDING_MS allows for.
+    console.log(`?perf panel:\n${await panel.textContent()}`);
+  }
   expect(errors).toEqual([]);
 });
 

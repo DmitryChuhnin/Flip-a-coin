@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { LANDING_MS } from './waits';
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -38,7 +39,7 @@ test('rolls a d20 on tap, ignores taps in flight, shows and announces the number
   await page.keyboard.press('Space');
   await expect(body(page)).toHaveAttribute('data-toss-count', '1');
 
-  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: 10_000 });
+  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: LANDING_MS });
   await expect(result).toHaveText(/^Rolled ([1-9]|1[0-9]|20)$/);
   const rolled = (await result.textContent())!.replace('Rolled ', '');
   await expect(caption).toBeVisible();
@@ -52,7 +53,7 @@ test('rolls a d20 on tap, ignores taps in flight, shows and announces the number
   }).toPass({ timeout: 10_000 });
   await expect(caption).toBeHidden();
   await expect(result).toHaveText('');
-  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: 10_000 });
+  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: LANDING_MS });
   await expect(result).toHaveText(/^Rolled ([1-9]|1[0-9]|20)$/);
   expect(errors).toEqual([]);
 });
@@ -90,7 +91,7 @@ test('opens the coin for an unknown saved tab and shows no caption after a toss'
   await expect(body(page)).toHaveAttribute('data-toss-state', 'idle', { timeout: 15_000 });
 
   await page.locator('#scene').tap();
-  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: 10_000 });
+  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: LANDING_MS });
   await expect(page.locator('#toss-result')).toHaveText(/^(Heads|Tails)$/);
   await expect(page.locator('#roll-number')).toBeHidden();
 });
