@@ -227,7 +227,7 @@ circle of 80% of the side. iOS fills a transparent touch icon with black.
 `?perf` on the page URL adds a panel with the frame rate and the toss planning time
 (`src/perf/`). The 60 fps target is checked on a phone against the deployed game, where DevTools
 need a cable and a desktop browser; behind `import.meta.env.DEV` the panel would not exist there.
-Without the parameter it costs about 0.8 kB gzipped and runs nothing.
+Without the parameter it costs about 1 kB gzipped (measured 2026-10-16) and runs nothing.
 
 - The panel counts the intervals between its own animation frames, which is what the player
   sees, not the time a render call takes.
