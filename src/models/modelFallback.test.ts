@@ -14,6 +14,7 @@ const ITEMS: [string, TossBody<string>][] = [
   ...DIE_KINDS.map((kind): [string, TossBody<string>] => [kind, createDie(kind).body]),
 ];
 const D6 = createDie('d6').body;
+const D4 = createDie('d4').body;
 
 /** A body `defineBody` accepts with the first face up, without the rest check of `modelBody`. */
 function unchecked(points: Vec3[], faces: Face<string>[], template: TossBody<string>) {
@@ -71,6 +72,17 @@ describe('a model body in the physics', () => {
           return { ...face, normal: [Math.round(x), Math.round(y), Math.round(z)] };
         }),
         D6,
+      ),
+    ],
+    [
+      'a d4 whose normals point at its truncated tips',
+      unchecked(
+        hullVectors(D4.hull),
+        D4.faces.map((face) => {
+          const [x, y, z] = face.normal;
+          return { ...face, normal: [x, -z, y] };
+        }),
+        D4,
       ),
     ],
     [

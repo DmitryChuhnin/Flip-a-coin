@@ -75,6 +75,7 @@ function prism(n: number): Vec3[] {
 
 const D6 = createDie('d6').body;
 const D8 = createDie('d8').body;
+const D4 = createDie('d4').body;
 const AXES: Vec3[] = [
   [1, 0, 0],
   [-1, 0, 0],
@@ -88,6 +89,22 @@ const AXIS_FACES = AXES.map((normal, i) => ({ value: [1, 6, 2, 5, 3, 4][i], norm
 const CUBE: Vec3[] = [-1, 1].flatMap((x) =>
   [-1, 1].flatMap((y) => [-1, 1].map((z): Vec3 => [x / 100, y / 100, z / 100])),
 );
+
+/** An octahedron in meters with each tip four points `r` off the axis and `drop` below the apex. */
+function octahedron(r: number, drop: number): Vec3[] {
+  return AXES.flatMap((axis) => {
+    const at = (side: Vec3, k: number) => (axis[k]! * (1 - drop) + side[k]! * r) / 100;
+    const tip = AXES.filter((side) => dot3(side, axis) === 0).map((side): Vec3 => [
+      at(side, 0),
+      at(side, 1),
+      at(side, 2),
+    ]);
+    return drop > 0 ? [...tip, [axis[0] / 100, axis[1] / 100, axis[2] / 100]] : tip;
+  });
+}
+
+/** A normal turned a quarter about x, as a script that skips or repeats the Z-up turn writes it. */
+const quarterX = (n: Vec3, sign: number): Vec3 => [n[0], -sign * n[2], sign * n[1]];
 
 describe('modelBody', () => {
   it.each(ITEMS)('accepts the %s described as a model in meters', (_, template) => {
@@ -255,6 +272,44 @@ describe('modelBody', () => {
     expect(body.symmetries).toHaveLength(24);
   });
 
+  it('rejects a d4 whose normals point at its truncated tips, as after a skipped Z-up turn', () => {
+    for (const sign of [1, -1]) {
+      const faces = D4.faces.map((face) => ({
+        value: face.value,
+        normal: quarterX(face.normal, sign),
+      }));
+      expect(() => modelBody({ points: asModel(D4).points, faces }, D4)).toThrow(
+        /With \d up the model tips off the side it rests on at less than 5° of tilt/,
+      );
+    }
+  });
+
+  it.each(ITEMS.filter(([name]) => name !== 'd6' && name !== 'd8'))(
+    'rejects the %s with normals turned a quarter about x either way',
+    (_, template) => {
+      for (const sign of [1, -1]) {
+        const faces = template.faces.map((face) => ({
+          value: face.value,
+          normal: quarterX(face.normal, sign),
+        }));
+        expect(() => modelBody({ points: asModel(template).points, faces }, template)).toThrow(
+          RangeError,
+        );
+      }
+    },
+  );
+
+  it.each([D6, D8])(
+    'accepts a d6 or d8 with normals turned a quarter about x: still its own',
+    (template) => {
+      const faces = template.faces.map((face) => ({
+        value: face.value,
+        normal: quarterX(face.normal, 1),
+      }));
+      expect(() => modelBody({ points: asModel(template).points, faces }, template)).not.toThrow();
+    },
+  );
+
   it('ignores the scale of the file: a cube of any size gets the d6 reach', () => {
     const big = CUBE.map((p): Vec3 => [p[0] * 1000, p[1] * 1000, p[2] * 1000]);
     const small = modelBody({ points: CUBE, faces: AXIS_FACES }, D6);
@@ -340,6 +395,16 @@ describe('modelBody', () => {
         })),
       },
       /The face normals do not follow the symmetries of the corners to 1e-3/,
+    ],
+    [
+      'an octahedron whose tips are low pyramids, 9e-4 of the reach high and 0.03 across',
+      { points: octahedron(0.03, 9e-4), faces: AXIS_FACES },
+      /tips off the side it rests on at less than 5° of tilt/,
+    ],
+    [
+      'an octahedron whose tips are cut flat, 0.035 of the reach across',
+      { points: octahedron(0.035, 0), faces: AXIS_FACES },
+      /tips off the side it rests on at less than 5° of tilt/,
     ],
     ['a collider of three points', { points: CUBE.slice(0, 3), faces: AXIS_FACES }, /four finite/],
     [

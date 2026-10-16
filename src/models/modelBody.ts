@@ -46,6 +46,8 @@ const PLANE_TOLERANCE = 1e-5;
 const SIDE_COS = Math.cos(1e-3);
 /** A side the body rests on has at least this share of the reach squared as its area. */
 const MIN_SIDE_AREA = 1e-3;
+/** A tilt this large about an edge of the side it rests on leaves the center of mass over it. */
+const MIN_TIP_DEG = 5;
 /** Finding the symmetries costs the square of the corner count per rotation. */
 const MAX_CORNERS = 256;
 
@@ -394,14 +396,21 @@ function checkRest(points: readonly Vec3[], q: Quat, reach: number, value: strin
   if (!(area / 2 >= MIN_SIDE_AREA * reach * reach)) {
     throw new RangeError(`With ${value} up the model does not rest on a flat side`);
   }
-  // The origin is the center of mass; a body with it outside the side tips over.
-  const margin = PLANE_TOLERANCE * reach;
-  const above = ring.every((p, i) => {
-    const next = ring[(i + 1) % ring.length]!;
-    return turn(p, next, [0, 0]) >= margin * Math.hypot(next[0] - p[0], next[1] - p[1]);
-  });
-  if (!above) {
+  // The origin is the center of mass; this is its distance inside the nearest edge of the side.
+  const inside = Math.min(
+    ...ring.map((p, i) => {
+      const next = ring[(i + 1) % ring.length]!;
+      return turn(p, next, [0, 0]) / Math.hypot(next[0] - p[0], next[1] - p[1]);
+    }),
+  );
+  if (!(inside >= PLANE_TOLERANCE * reach)) {
     throw new RangeError(`With ${value} up the center of mass is outside the side it rests on`);
+  }
+  // A truncated tip passes the checks above, but no toss comes to rest on it.
+  if ((Math.atan2(inside, -lowest) * 180) / Math.PI < MIN_TIP_DEG) {
+    throw new RangeError(
+      `With ${value} up the model tips off the side it rests on at less than ${MIN_TIP_DEG}° of tilt`,
+    );
   }
 }
 

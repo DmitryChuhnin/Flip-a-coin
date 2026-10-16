@@ -337,9 +337,7 @@ check, 1e-6, bound first: a rotation found on the corners carried their error, c
 of the reach failed, and so did a d20 made from Blender's Ico Sphere, whose vertex table is rounded
 to three decimals of 200, up to 1.4e-5 of the radius. Now corners moved by 1e-4 of the reach in
 random directions pass on every procedural item, also with normals computed from the moved mesh, and
-1e-3 fails (measured 2026-10-17). Averaging keeps a side flat only where a symmetry turns it in
-place, and none turns a side of the d10, so the rest check counts the hull points within 1e-3 of the
-reach of the lowest one as the side. Points closer together than 1e-5 of the reach are merged first:
+1e-3 fails (measured 2026-10-17). Points closer together than 1e-5 of the reach are merged first:
 split vertices a little apart would be corners closer together than 2e-3 of the reach, which are
 rejected, as rotations found to 1e-3 could take one for the other. Corners are the hull points where
 three sides meet, hull triangles turned less than 1e-3 rad from each other making one side, so an
@@ -347,11 +345,23 @@ engraved number does not break the symmetry. Their number is capped at 256: find
 rotations costs the square of the corner count per rotation, and a round coin of 256 corners and 256
 rotations takes 0.35 s in Node (2026-10-17). Grouping the triangles into sides costs the triangle
 count times the side count, 37 s for a smooth mesh of 60,000 points, so it stops at 508 sides, the
-most that 256 corners allow. With its starting outcome up the model must rest on a flat side with
-its center of mass above it. Face directions that point at corners pass the symmetry checks (an
-octahedron with a cube's six directions), and so does a coin sheared until its center of mass is
-beyond its base; no toss rests with either up, and a test shows that recording the fallback toss
-fails for both.
+most that 256 corners allow.
+
+Averaging keeps a side flat only where a symmetry turns it in place, and none turns a side of the
+d10, so the rest check counts the hull points within 1e-3 of the reach of the lowest one as the
+side. With its starting outcome up the model must rest on such a side with its center of mass above
+it, and a tilt of less than 5° about an edge of the side must not bring the center of mass over that
+edge. Face directions that point at corners pass the symmetry checks: an octahedron with a cube's
+six directions, and a d4 whose normals point at its truncated tips, as when a script skips or
+repeats the Z-up turn. So do a coin sheared until its center of mass is beyond its base and a
+pyramid on a tip lower than 1e-3 of the reach. No toss rests with any of them up, and a test shows
+that recording the fallback toss fails for the first three. The 5° comes from recording the fallback
+tosses (2026-10-17): the procedural items have 19° (d20) to 83° (coin), a d4 standing on a truncated
+tip 1°; octahedra with cut tips fail up to 13° and pass from 17°; dice whose flat sides are shrunk
+as by bevels fail at least one of the two tosses from 19° (d6), 18° (d12), 14° (d8) or 12° (d20)
+down, with a few passes below, the lowest a d20 at 7.8° in one mode. No body below 5.9° recorded
+either toss. So the check rejects tips, and a model between 5° and about 20° can pass it and still
+fail to record a fallback toss, which the game has to handle when it loads models.
 
 Normals are read in the glTF scene's frame, not converted from Blender's: their frame depends on
 the script that wrote the property, which the file's `asset.generator` does not name, and on a d6

@@ -139,10 +139,18 @@ onto each other, both to 1e-3 of the size, are the model's symmetries, and they 
 onto any other. The game then moves the corners and the normals to exactly symmetric places. Corners
 up to 1e-4 of the size off those places pass, with normals computed from such a mesh; at 1e-3 off
 every item fails. Blender's Ico Sphere, up to 1.4e-5 of the radius off, passes. Normals must be unit
-length to 1e-6. With any value up the model must rest on a flat side with its center of mass above
-it; the hull points within 1e-3 of the size of the lowest one make up that side. A model that breaks
-these rules is rejected with a `RangeError` that names the fault; a file that does not parse, with
-an `Error` whose `cause` is the loader's error.
+length to 1e-6. With any value up the model must rest on a flat side, the hull points within 1e-3 of
+the size of the lowest one, with its center of mass above it, and a tilt of less than 5° about an
+edge of that side must not tip it over. A model that breaks these rules is rejected with a
+`RangeError` that names the fault; a file that does not parse, with an `Error` whose `cause` is the
+loader's error.
+
+Bevels on the collider shrink its flat sides, and the two fallback tosses the game records for each
+item, with reduced motion and without, stop coming to rest on them. With the sides of a d6, d8, d12
+or d20 cut to 80% of their width all record both, at 60% the d12 and d20 fail the one without
+reduced motion, at 40% each fails one or both (`docs/decisions.md`, "A model takes its size and
+launch from the procedural item"). A collider with the item's full flat sides tosses like the
+procedural item; the bevels can stay on `visual`.
 
 ## Layout
 
