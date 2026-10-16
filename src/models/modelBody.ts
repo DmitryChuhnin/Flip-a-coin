@@ -37,7 +37,10 @@ export interface ModelBody<V extends string> {
 const SNAP_TOLERANCE = 1e-3;
 /** Face normals must be unit to this, as in `defineBody`; only their directions are aligned. */
 const UNIT_TOLERANCE = 1e-6;
-/** Points this share of the reach off a plane lie in it: a flat mesh, a center of mass on an edge. */
+/**
+ * Points this share of the reach apart are one point, and this far off a plane lie in it: split
+ * vertices, a flat mesh, a center of mass on an edge.
+ */
 const PLANE_TOLERANCE = 1e-5;
 /** Hull triangles turned less than 1e-3 rad from each other lie in one flat side. */
 const SIDE_COS = Math.cos(1e-3);
@@ -63,7 +66,10 @@ export function modelBody<V extends string>(
   // A visual can have more points than a spread call takes as arguments.
   const modelReach = points.reduce((max, p) => Math.max(max, length3(p)), 0);
   if (!(modelReach > 0)) throw new RangeError('The model has no size');
-  const corners = hullCorners(points, PLANE_TOLERANCE * modelReach);
+  const corners = hullCorners(
+    distinct(points, PLANE_TOLERANCE * modelReach),
+    PLANE_TOLERANCE * modelReach,
+  );
   if (corners.length > MAX_CORNERS) {
     throw new RangeError(`The model has ${corners.length} corners, more than ${MAX_CORNERS}`);
   }
@@ -200,29 +206,56 @@ function symmetrize<V extends string>(
 
 /** Finds the corner within `cell` of a point, or -1; comparing with every corner is too slow. */
 function nearestCorner(corners: readonly Vec3[], cell: number): (target: Vec3) => number {
-  const half = Math.ceil(corners.reduce((max, p) => Math.max(max, length3(p)), 0) / cell) + 2;
+  const grid = pointGrid(
+    cell,
+    corners.reduce((max, p) => Math.max(max, length3(p)), 0),
+  );
+  corners.forEach((p, i) => grid.add(p, i));
+  return grid.nearest;
+}
+
+/** The points without those closer than `tolerance` to an earlier one, such as split vertices. */
+function distinct(points: readonly Vec3[], tolerance: number): Vec3[] {
+  const reach = points.reduce((max, p) => Math.max(max, length3(p)), 0);
+  // Cells this coarse keep the grid keys exact integers.
+  const grid = pointGrid(Math.max(tolerance, reach / 1e5), reach);
+  const kept: Vec3[] = [];
+  for (const p of points) {
+    const i = grid.nearest(p);
+    if (i >= 0 && length3(sub(kept[i]!, p)) <= tolerance) continue;
+    grid.add(p, kept.length);
+    kept.push(p);
+  }
+  return kept;
+}
+
+/** Points filed by cubes of side `cell`; `nearest` finds the closest within `cell`, or -1. */
+function pointGrid(cell: number, reach: number) {
+  const half = Math.ceil(reach / cell) + 2;
   const index = (v: number) => Math.floor(v / cell) + half;
   const at = (x: number, y: number, z: number) => (x * (2 * half + 1) + y) * (2 * half + 1) + z;
-  const grid = new Map<number, number[]>();
-  corners.forEach((p, i) => {
-    const key = at(index(p[0]), index(p[1]), index(p[2]));
-    grid.set(key, [...(grid.get(key) ?? []), i]);
-  });
-  return (target) => {
-    const [x, y, z] = [index(target[0]), index(target[1]), index(target[2])];
-    let best = -1;
-    let distance = cell;
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dz = -1; dz <= 1; dz++) {
-          for (const i of grid.get(at(x + dx, y + dy, z + dz)) ?? []) {
-            const d = length3(sub(corners[i]!, target));
-            if (d <= distance) [best, distance] = [i, d];
+  const cells = new Map<number, [Vec3, number][]>();
+  return {
+    add(p: Vec3, i: number): void {
+      const key = at(index(p[0]), index(p[1]), index(p[2]));
+      cells.set(key, [...(cells.get(key) ?? []), [p, i]]);
+    },
+    nearest(target: Vec3): number {
+      const [x, y, z] = [index(target[0]), index(target[1]), index(target[2])];
+      let best = -1;
+      let distance = cell;
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dz = -1; dz <= 1; dz++) {
+            for (const [p, i] of cells.get(at(x + dx, y + dy, z + dz)) ?? []) {
+              const d = length3(sub(p, target));
+              if (d <= distance) [best, distance] = [i, d];
+            }
           }
         }
       }
-    }
-    return best;
+      return best;
+    },
   };
 }
 
@@ -315,7 +348,13 @@ function hullCorners(points: readonly Vec3[], tolerance: number): Vec3[] {
   const sideOf = new Map<HullFace, Vector3>();
   for (const face of [...hull.faces].sort((x, y) => y.area - x.area)) {
     let side = sides.find((normal) => normal.dot(face.normal) >= SIDE_COS);
-    if (!side) sides.push((side = face.normal));
+    if (!side) {
+      // A convex body with n corners has at most 2n - 4 sides; a smooth mesh stops here.
+      if (sides.length === 2 * MAX_CORNERS - 4) {
+        throw new RangeError(`The model has more than ${MAX_CORNERS} corners`);
+      }
+      sides.push((side = face.normal));
+    }
     sideOf.set(face, side);
   }
   const sidesAt = new Map<Vector3, Set<Vector3>>();

@@ -233,6 +233,28 @@ describe('modelBody', () => {
     expect(body.symmetries).toHaveLength(24);
   });
 
+  it('rejects a smooth visual of 60,000 points for its corners without grouping every side', () => {
+    // Points spread evenly over a sphere by the golden angle.
+    const sphere = Array.from({ length: 60_000 }, (_, i): Vec3 => {
+      const y = 1 - (2 * i + 1) / 60_000;
+      const angle = i * Math.PI * (3 - Math.sqrt(5));
+      const r = Math.sqrt(1 - y * y) / 100;
+      return [r * Math.cos(angle), y / 100, r * Math.sin(angle)];
+    });
+    expect(() => modelBody({ points: sphere, faces: AXIS_FACES }, D6)).toThrow(
+      'The model has more than 256 corners',
+    );
+  });
+
+  it('merges points closer than 1e-5 of the reach: a cube with each corner given three times', () => {
+    const tripled = CUBE.flatMap((p) =>
+      [-1e-9, 0, 1e-9].map((d): Vec3 => [p[0] + d, p[1] - d, p[2]]),
+    );
+    const { body } = modelBody({ points: tripled, faces: AXIS_FACES }, D6);
+    expect(body.hull).toHaveLength(8 * 3);
+    expect(body.symmetries).toHaveLength(24);
+  });
+
   it('ignores the scale of the file: a cube of any size gets the d6 reach', () => {
     const big = CUBE.map((p): Vec3 => [p[0] * 1000, p[1] * 1000, p[2] * 1000]);
     const small = modelBody({ points: CUBE, faces: AXIS_FACES }, D6);

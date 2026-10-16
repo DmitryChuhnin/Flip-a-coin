@@ -339,16 +339,19 @@ to three decimals of 200, up to 1.4e-5 of the radius. Now corners moved by 1e-4 
 random directions pass on every procedural item, also with normals computed from the moved mesh, and
 1e-3 fails (measured 2026-10-17). Averaging keeps a side flat only where a symmetry turns it in
 place, and none turns a side of the d10, so the rest check counts the hull points within 1e-3 of the
-reach of the lowest one as the side. Corners closer together than 2e-3 of the reach are rejected, as
-rotations found to 1e-3 could take one for the other. Corners are the hull points where three sides
-meet, hull triangles turned less than 1e-3 rad from each other making one side, so an engraved
-number does not break the symmetry. Their number is capped at 256: finding and checking the
+reach of the lowest one as the side. Points closer together than 1e-5 of the reach are merged first:
+split vertices a little apart would be corners closer together than 2e-3 of the reach, which are
+rejected, as rotations found to 1e-3 could take one for the other. Corners are the hull points where
+three sides meet, hull triangles turned less than 1e-3 rad from each other making one side, so an
+engraved number does not break the symmetry. Their number is capped at 256: finding and checking the
 rotations costs the square of the corner count per rotation, and a round coin of 256 corners and 256
-rotations takes 0.35 s in Node (2026-10-17). With its starting outcome up the model must rest on a
-flat side with its center of mass above it. Face directions that point at corners pass the symmetry
-checks (an octahedron with a cube's six directions), and so does a coin sheared until its center of
-mass is beyond its base; no toss rests with either up, and a test shows that recording the fallback
-toss fails for both.
+rotations takes 0.35 s in Node (2026-10-17). Grouping the triangles into sides costs the triangle
+count times the side count, 37 s for a smooth mesh of 60,000 points, so it stops at 508 sides, the
+most that 256 corners allow. With its starting outcome up the model must rest on a flat side with
+its center of mass above it. Face directions that point at corners pass the symmetry checks (an
+octahedron with a cube's six directions), and so does a coin sheared until its center of mass is
+beyond its base; no toss rests with either up, and a test shows that recording the fallback toss
+fails for both.
 
 Normals are read in the glTF scene's frame, not converted from Blender's: their frame depends on
 the script that wrote the property, which the file's `asset.generator` does not name, and on a d6
