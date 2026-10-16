@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { LANDING_MS } from './waits';
 
 const body = (page: Page) => page.locator('body');
 const button = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
@@ -33,7 +34,7 @@ test.describe('in a Russian browser', () => {
       await page.locator('#scene').tap();
       await expect(body(page)).toHaveAttribute('data-toss-count', '1', { timeout: 500 });
     }).toPass({ timeout: 10_000 });
-    await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: 10_000 });
+    await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: LANDING_MS });
     await expect(page.locator('#toss-result')).toHaveText(/^(Орёл|Решка)$/);
     expect(errors).toEqual([]);
   });

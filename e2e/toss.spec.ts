@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { LANDING_MS } from './waits';
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -31,7 +32,7 @@ test('tosses on tap, ignores taps in flight, announces the result and tosses aga
   await page.keyboard.press('Space');
   await expect(body(page)).toHaveAttribute('data-toss-count', '1');
 
-  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: 10_000 });
+  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: LANDING_MS });
   await expect(result).toHaveText(/^(Heads|Tails)$/);
 
   // Space is ignored until the camera settles on the landed coin.
@@ -42,7 +43,7 @@ test('tosses on tap, ignores taps in flight, announces the result and tosses aga
   await expect(body(page)).toHaveAttribute('data-toss-state', 'flying');
   await expect(result).toHaveText('');
 
-  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: 10_000 });
+  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: LANDING_MS });
   await expect(result).toHaveText(/^(Heads|Tails)$/);
   expect(errors).toEqual([]);
 });

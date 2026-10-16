@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { LANDING_MS } from './waits';
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -42,7 +43,7 @@ test('switches between the coin and a die and remembers the choice', async ({ pa
 
   await tossOnce(page, '1');
   await expect(page.locator('#hint')).toBeHidden();
-  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: 10_000 });
+  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: LANDING_MS });
   await expect(page.locator('#toss-result')).toHaveText(/^Rolled [1-6]$/);
 
   await button(page, 'Coin').click();
@@ -68,7 +69,7 @@ test('locks the item controls in flight but not the sound button', async ({ page
   await sound.click();
   await expect(sound).toHaveAttribute('aria-pressed', 'false');
 
-  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: 10_000 });
+  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: LANDING_MS });
   await expect(button(page, 'Dice')).toBeEnabled();
   await page.reload();
   await expect(button(page, 'Sound')).toHaveAttribute('aria-pressed', 'false');
@@ -90,7 +91,7 @@ test('starts with the coin and no errors when storage is blocked', async ({ page
   await button(page, 'Dice').click();
   await expect(body(page)).toHaveAttribute('data-item', 'd20');
   await tossOnce(page, '1');
-  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: 10_000 });
+  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: LANDING_MS });
   expect(errors).toEqual([]);
 });
 

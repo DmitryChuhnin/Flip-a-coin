@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { expect, test } from '@playwright/test';
+import { LANDING_MS } from './waits';
 
 const body = (page: import('@playwright/test').Page) => page.locator('body');
 
@@ -64,7 +65,7 @@ test('runs offline after the first visit', async ({ page, context }) => {
     await page.locator('#scene').tap();
     await expect(body(page)).toHaveAttribute('data-toss-count', '1', { timeout: 500 });
   }).toPass({ timeout: 10_000 });
-  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: 10_000 });
+  await expect(body(page)).toHaveAttribute('data-toss-state', 'result', { timeout: LANDING_MS });
 });
 
 test('links an installable manifest of the game path whose icons load', async ({
