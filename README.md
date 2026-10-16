@@ -101,6 +101,34 @@ Desirable:
   logs a warning;
 - a long `max-age` for `assets/`: their names change with their content.
 
+## Models
+
+The game does not load models yet; `src/models/` reads and checks them. A model is one `.glb` per
+item, Y up, origin at the center of mass, in any size: the game scales it to the procedural item
+(`docs/decisions.md`, "A model takes its size and launch from the procedural item"). It has:
+
+- a node named `visual`: the mesh to draw;
+- optionally a node named `collider`: a simplified convex mesh for physics, not drawn. Without it
+  the convex hull of `visual` is used, so relief that sticks out of the body needs a collider;
+- a custom property `faces` on the scene, on `collider` or on `visual`, read in that order: an
+  array, or a JSON string of one, with an entry `{ "value": ..., "normal": [x, y, z] }` per
+  outcome. Values are `heads` and `tails` for the coin and `1` to `N` for a die, as numbers or
+  strings. A normal is the unit direction that points up when that value shows: the outward face
+  normal, for a d4 the direction of the vertex. It is in the frame of the glTF scene, Y up.
+  Blender's exporter with +Y Up, its default, turns the meshes but copies custom properties as
+  they are, so a script that reads a normal `(x, y, z)` in Blender, Z up, writes `(x, z, -y)`.
+
+The body is the convex hull of the collider. Its corners are the points where three or more
+flat sides meet; points inside a side or on an edge, such as the outline of an engraved number,
+are left out. There may be at most 256 corners. Every rotation that maps the corners onto each
+other to 1e-5 of the size must map the normals onto each other to 1e-6, and these rotations must
+carry any face onto any other. A rotation found on the corners carries their error into the
+normals: corners off by 3e-7 of the size pass, off by 1e-6 they fail. Float32 coordinates of
+exact positions are within 1e-7, so the collider and the normals come from a script, not from
+placing by hand. With any value up the model must rest on a flat side with its center of mass
+above it. A model that breaks these rules is rejected with a `RangeError` that names the fault;
+a file that does not parse, with an `Error` whose `cause` is the loader's error.
+
 ## Layout
 
 - `src/main.ts`: entry point; WebGL2 check, render loop, pause while the tab is hidden.
@@ -132,6 +160,8 @@ Desirable:
 - `src/math/`: quaternions (`quat.ts`), convex faces and chamfering (`polyhedron.ts`), rotation
   groups of point sets (`symmetry.ts`).
 - `src/random.ts`: uniform integers from `crypto.getRandomValues`.
+- `src/models/`: the `.glb` model loader (`loadModel.ts`) and the check of a model's body against
+  the procedural item it replaces (`modelBody.ts`); not imported by the game yet.
 - `src/physics/`: Rapier world for one toss (`simulate.ts`) and the recorded frame format
   (`frames.ts`).
 - `src/toss/`: body definition and validation (`body.ts`), launch profiles, toss planning with rejection and fallback (`planToss.ts`), face
